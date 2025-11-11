@@ -3,9 +3,11 @@ import { authenticateToken, checkRateLimit, checkQuota, checkScope } from '@/lib
 import { supabaseAdmin } from '@/lib/supabase/admin'
 import { createProvider } from '@/lib/providers/factory'
 import { generateCorrelationId, logUsage, structuredLog } from '@/lib/utils/logger'
+import { MCPServer } from '@/lib/mcp/server'
+import { MCPTool, MCPConfig } from '@/lib/mcp/types'
 
 export const runtime = 'nodejs'
-export const maxDuration = 60
+export const maxDuration = 120 // Longer timeout for MCP operations
 
 export async function POST(request: NextRequest) {
   const startTime = Date.now()
@@ -71,10 +73,6 @@ export async function POST(request: NextRequest) {
     const body = await request.json()
     const { endpoint, mcp_config_id, stream, ...chatRequest } = body
 
-    // Also check query parameter for MCP config
-    const { searchParams } = new URL(request.url)
-    const mcpConfigId = mcp_config_id || searchParams.get('mcp_config_id')
-
     if (!endpoint) {
       return NextResponse.json(
         { error: 'Missing endpoint parameter' },
@@ -82,21 +80,14 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Get endpoint configuration
     if (!supabaseAdmin) {
-      console.error('Supabase admin client not initialized - check environment variables')
       return NextResponse.json(
-        { 
-          error: 'Server configuration error: Supabase admin client not initialized. Please check SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY environment variables.',
-          details: {
-            hasUrl: !!process.env.SUPABASE_URL,
-            hasServiceKey: !!process.env.SUPABASE_SERVICE_ROLE_KEY
-          }
-        },
+        { error: 'Server configuration error' },
         { status: 500 }
       )
     }
 
+    // Get endpoint configuration
     const { data: endpointData, error: endpointError } = await supabaseAdmin
       .from('endpoints')
       .select('*, providers(*)')
@@ -104,45 +95,50 @@ export async function POST(request: NextRequest) {
       .eq('is_active', true)
       .single()
 
-    if (endpointError) {
-      console.error('Database error fetching endpoint:', endpointError)
-      
-      // Check for authentication errors
-      if (endpointError.code === 'PGRST301' || endpointError.message?.includes('JWT') || endpointError.message?.includes('401')) {
-        return NextResponse.json(
-          { 
-            error: 'Authentication failed. Please verify SUPABASE_SERVICE_ROLE_KEY is correct.',
-            details: endpointError.details || null,
-            code: endpointError.code || null
-          },
-          { status: 500 }
-        )
-      }
-      
-      return NextResponse.json(
-        { 
-          error: endpointError.message || 'Failed to fetch endpoint configuration',
-          details: endpointError.details || null,
-          code: endpointError.code || null
-        },
-        { status: 500 }
-      )
-    }
-
-    if (!endpointData) {
+    if (endpointError || !endpointData) {
       return NextResponse.json(
         { error: 'Endpoint not found or inactive' },
         { status: 404 }
       )
     }
 
-    // Type assertion for joined query result
     const endpointConfig = endpointData as any
-    if (!endpointConfig.providers) {
-      return NextResponse.json(
-        { error: 'Provider configuration not found' },
-        { status: 500 }
-      )
+
+    // Get MCP config if specified
+    let mcpServer: MCPServer | null = null
+    if (mcp_config_id) {
+      const { data: mcpConfigData, error: mcpError } = await supabaseAdmin
+        .from('mcp_configs')
+        .select('*')
+        .eq('id', mcp_config_id)
+        .eq('is_active', true)
+        .single()
+
+      if (!mcpError && mcpConfigData) {
+        const mcpConfig = mcpConfigData as any as MCPConfig
+
+        // Get tools for this MCP config
+        const enabledTools = mcpConfig.enabled_tools || []
+        const { data: toolsData, error: toolsError } = await supabaseAdmin
+          .from('mcp_tools')
+          .select('*')
+          .in('id', enabledTools)
+          .eq('is_active', true)
+
+        if (!toolsError && toolsData) {
+          const tools: MCPTool[] = toolsData.map((t: any) => ({
+            id: t.id,
+            name: t.name,
+            description: t.description,
+            schema: t.schema,
+            handler_type: t.handler_type,
+            handler_config: t.handler_config,
+            is_active: t.is_active
+          }))
+
+          mcpServer = new MCPServer(mcpConfig, tools)
+        }
+      }
     }
 
     const provider = createProvider(endpointConfig.providers.type)
@@ -152,68 +148,26 @@ export async function POST(request: NextRequest) {
       ...endpointConfig.providers.config,
     }
 
-    // Load MCP config if specified
-    let mcpServer: any = null
-    if (mcpConfigId) {
-      try {
-        const { MCPServer } = await import('@/lib/mcp/server')
-        // Types imported for type checking only
-
-        const { data: mcpConfigData, error: mcpError } = await supabaseAdmin
-          .from('mcp_configs')
-          .select('*')
-          .eq('id', mcpConfigId)
-          .eq('is_active', true)
-          .single()
-
-        if (!mcpError && mcpConfigData) {
-          const mcpConfig = mcpConfigData as any
-
-          const enabledTools = mcpConfig.enabled_tools || []
-          const { data: toolsData, error: toolsError } = await supabaseAdmin
-            .from('mcp_tools')
-            .select('*')
-            .in('id', enabledTools)
-            .eq('is_active', true)
-
-          if (!toolsError && toolsData) {
-            const tools = toolsData.map((t: any) => ({
-              id: t.id,
-              name: t.name,
-              description: t.description,
-              schema: t.schema,
-              handler_type: t.handler_type,
-              handler_config: t.handler_config,
-              is_active: t.is_active
-            }))
-
-            mcpServer = new MCPServer(mcpConfig, tools)
-          }
-        }
-      } catch (error) {
-        structuredLog('warn', 'Failed to load MCP config', { correlationId, error: (error as Error).message })
-      }
-    }
-
-    // Merge endpoint config with request
-    let finalRequest = {
+    // Prepare request with MCP if available
+    const finalRequest = {
       model: endpointConfig.model,
       ...endpointConfig.config,
       ...chatRequest,
     }
 
-    // Prepare request with MCP if available
+    let messages = chatRequest.messages || []
+    
+    // If MCP is enabled, prepare the request with tools
     if (mcpServer) {
-      const mcpRequest = mcpServer.prepareRequest(chatRequest.messages || [], finalRequest)
-      finalRequest = {
-        ...finalRequest,
-        messages: mcpRequest.messages as any,
-      }
+      const mcpRequest = mcpServer.prepareRequest(messages, finalRequest)
+      messages = mcpRequest.messages as any
       
-      // Add tools to request if provider supports it
-      if (mcpRequest.tools && mcpRequest.tools.length > 0) {
-        (finalRequest as any).tools = mcpRequest.tools
-        (finalRequest as any).tool_choice = mcpRequest.tool_choice
+      // Add tools to request if provider supports it (OpenAI format)
+      const tools = mcpRequest.tools
+      if (tools && Array.isArray(tools) && tools.length > 0) {
+        const finalRequestAny = finalRequest as any
+        finalRequestAny.tools = tools
+        finalRequestAny.tool_choice = mcpRequest.tool_choice
       }
     }
 
@@ -221,6 +175,8 @@ export async function POST(request: NextRequest) {
 
     // Handle streaming
     if (stream || finalRequest.stream) {
+      // For streaming with MCP, we need to handle tool calls differently
+      // This is a simplified version - full implementation would handle tool calls in stream
       const stream = new ReadableStream({
         async start(controller) {
           try {
@@ -241,7 +197,7 @@ export async function POST(request: NextRequest) {
               statusCode: 200,
               latencyMs,
               requestSize,
-              responseSize: 0, // Streaming, size unknown
+              responseSize: 0,
               model: endpointConfig.model,
               costEstimate: null,
               errorMessage: null,
@@ -250,7 +206,7 @@ export async function POST(request: NextRequest) {
               userAgent,
             })
           } catch (error: any) {
-            structuredLog('error', 'Streaming error', { correlationId, error: error.message })
+            structuredLog('error', 'MCP streaming error', { correlationId, error: error.message })
             const latencyMs = Date.now() - startTime
             await logUsage({
               tokenId: tokenData.id,
@@ -283,28 +239,28 @@ export async function POST(request: NextRequest) {
       })
     }
 
-    // Non-streaming response
+    // Non-streaming response with MCP tool calling support
     let response = await provider.chatCompletion(finalRequest, providerConfig)
     
     // Process tool calls if MCP is enabled
     if (mcpServer && mcpServer.hasToolCalls(response)) {
-      const { toolCalls } = await mcpServer.processResponse(response, chatRequest.messages || [])
+      const { toolCalls } = await mcpServer.processResponse(response, messages)
       
       if (toolCalls.length > 0) {
         // Execute all tool calls
         const toolResults = await Promise.all(
-          toolCalls.map((tc: any) => mcpServer.executeTool(tc))
+          toolCalls.map(tc => mcpServer!.executeTool(tc))
         )
 
         // Add tool results to messages and make another request
         const toolMessages = toolResults.map(tr => 
-          mcpServer.createToolResponseMessage(tr.tool_call_id, tr.content)
+          mcpServer!.createToolResponseMessage(tr.tool_call_id, tr.content)
         )
 
         const nextRequest = {
           ...finalRequest,
           messages: [
-            ...(chatRequest.messages || []),
+            ...messages,
             response.choices[0].message as any,
             ...toolMessages
           ]
@@ -314,7 +270,7 @@ export async function POST(request: NextRequest) {
         response = await provider.chatCompletion(nextRequest, providerConfig)
       }
     }
-    
+
     const responseSize = JSON.stringify(response).length
     const latencyMs = Date.now() - startTime
 
@@ -342,7 +298,7 @@ export async function POST(request: NextRequest) {
       },
     })
   } catch (error: any) {
-    structuredLog('error', 'Chat API error', { correlationId, error: error.message })
+    structuredLog('error', 'MCP Chat API error', { correlationId, error: error.message })
     const latencyMs = Date.now() - startTime
     return NextResponse.json(
       { error: error.message || 'Internal server error', correlationId },

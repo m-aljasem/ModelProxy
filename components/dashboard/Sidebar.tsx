@@ -12,11 +12,15 @@ import {
   FileText,
   Settings,
   TestTube,
+  Puzzle,
+  Wrench,
 } from 'lucide-react'
 
 const navigation = [
   { name: 'Overview', href: '/dashboard', icon: LayoutDashboard },
   { name: 'Endpoints', href: '/dashboard/endpoints', icon: Network },
+  { name: 'MCP Configs', href: '/dashboard/mcp', icon: Puzzle },
+  { name: 'MCP Builder', href: '/dashboard/mcp/builder', icon: Wrench },
   { name: 'Tokens', href: '/dashboard/tokens', icon: Key },
   { name: 'Providers', href: '/dashboard/providers', icon: Server },
   { name: 'Test', href: '/dashboard/test', icon: TestTube },
