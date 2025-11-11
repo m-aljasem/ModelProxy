@@ -31,7 +31,12 @@ export async function logUsage(params: {
   userAgent: string | null
 }): Promise<void> {
   try {
-    await supabaseAdmin.rpc('log_usage', {
+    if (!supabaseAdmin) {
+      console.error('Supabase admin client not initialized for usage logging')
+      return
+    }
+    const admin = supabaseAdmin as any
+    await admin.rpc('log_usage', {
       p_token_id: params.tokenId,
       p_endpoint_id: params.endpointId,
       p_provider_id: params.providerId,
@@ -61,7 +66,12 @@ export async function logAudit(params: {
   ipAddress: string | null
 }): Promise<void> {
   try {
-    await supabaseAdmin.from('audit_logs').insert({
+    if (!supabaseAdmin) {
+      console.error('Supabase admin client not initialized for audit logging')
+      return
+    }
+    const admin = supabaseAdmin as any
+    await admin.from('audit_logs').insert({
       user_id: params.userId,
       action: params.action,
       resource_type: params.resourceType,

@@ -33,6 +33,10 @@ export async function createToken(
   const token = `mm_${tokenBytes.toString('hex')}`
   const tokenHash = await hashToken(token)
 
+  if (!supabaseAdmin) {
+    throw new Error('Supabase admin client not initialized')
+  }
+
   const { data, error } = await supabaseAdmin
     .from('api_tokens')
     .insert({
@@ -44,7 +48,7 @@ export async function createToken(
       ip_whitelist: ipWhitelist,
       is_active: true,
       created_by: createdBy || null,
-    })
+    } as any)
     .select()
     .single()
 
@@ -52,21 +56,26 @@ export async function createToken(
     throw new Error(`Failed to create token: ${error.message}`)
   }
 
+  const tokenData = data as any
   return {
     token,
     tokenData: {
-      id: data.id,
-      name: data.name,
-      scopes: data.scopes,
-      rateLimitPerMinute: data.rate_limit_per_minute,
-      monthlyQuota: data.monthly_quota,
-      ipWhitelist: data.ip_whitelist || [],
-      isActive: data.is_active,
+      id: tokenData.id,
+      name: tokenData.name,
+      scopes: tokenData.scopes,
+      rateLimitPerMinute: tokenData.rate_limit_per_minute,
+      monthlyQuota: tokenData.monthly_quota,
+      ipWhitelist: tokenData.ip_whitelist || [],
+      isActive: tokenData.is_active,
     },
   }
 }
 
 export async function validateToken(token: string): Promise<TokenData | null> {
+  if (!supabaseAdmin) {
+    return null
+  }
+
   const { data: tokens, error } = await supabaseAdmin
     .from('api_tokens')
     .select('*')
@@ -77,22 +86,25 @@ export async function validateToken(token: string): Promise<TokenData | null> {
   }
 
   for (const tokenRecord of tokens) {
-    const isValid = await verifyToken(token, tokenRecord.token_hash)
+    const isValid = await verifyToken(token, (tokenRecord as any).token_hash)
     if (isValid) {
       // Update last_used_at
-      await supabaseAdmin
-        .from('api_tokens')
-        .update({ last_used_at: new Date().toISOString() })
-        .eq('id', tokenRecord.id)
+      if (supabaseAdmin) {
+        const admin = supabaseAdmin as any
+        await admin
+          .from('api_tokens')
+          .update({ last_used_at: new Date().toISOString() })
+          .eq('id', (tokenRecord as any).id)
+      }
 
       return {
-        id: tokenRecord.id,
-        name: tokenRecord.name,
-        scopes: tokenRecord.scopes,
-        rateLimitPerMinute: tokenRecord.rate_limit_per_minute,
-        monthlyQuota: tokenRecord.monthly_quota,
-        ipWhitelist: tokenRecord.ip_whitelist || [],
-        isActive: tokenRecord.is_active,
+        id: (tokenRecord as any).id,
+        name: (tokenRecord as any).name,
+        scopes: (tokenRecord as any).scopes,
+        rateLimitPerMinute: (tokenRecord as any).rate_limit_per_minute,
+        monthlyQuota: (tokenRecord as any).monthly_quota,
+        ipWhitelist: (tokenRecord as any).ip_whitelist || [],
+        isActive: (tokenRecord as any).is_active,
       }
     }
   }
@@ -101,7 +113,12 @@ export async function validateToken(token: string): Promise<TokenData | null> {
 }
 
 export async function revokeToken(tokenId: string): Promise<void> {
-  const { error } = await supabaseAdmin
+  if (!supabaseAdmin) {
+    throw new Error('Supabase admin client not initialized')
+  }
+
+  const admin = supabaseAdmin as any
+  const { error } = await admin
     .from('api_tokens')
     .update({ is_active: false })
     .eq('id', tokenId)

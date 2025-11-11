@@ -109,6 +109,13 @@ export async function POST(request: NextRequest) {
     const { name, type, api_key, base_url } = body
 
     // Use admin client to bypass RLS
+    if (!supabaseAdmin) {
+      return NextResponse.json(
+        { error: 'Server configuration error: Supabase admin client not initialized' },
+        { status: 500 }
+      )
+    }
+
     const { data, error } = await supabaseAdmin
       .from('providers')
       .insert({
@@ -126,13 +133,14 @@ export async function POST(request: NextRequest) {
     }
 
     // Log audit if we have a user
-    if (userId) {
+    if (userId && data) {
       try {
+        const providerData = data as any
         await logAudit({
           userId,
           action: 'provider.created',
           resourceType: 'provider',
-          resourceId: data.id,
+          resourceId: providerData.id,
           details: { name, type },
           ipAddress: request.headers.get('x-forwarded-for')?.split(',')[0] || null,
         })

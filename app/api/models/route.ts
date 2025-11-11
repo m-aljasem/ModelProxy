@@ -53,11 +53,12 @@ export async function GET(request: NextRequest) {
         )
       }
 
-      const provider = createProvider(providerData.type)
+      // Type assertion for Supabase query result
+      const provider = createProvider((providerData as any).type)
       const providerConfig = {
-        apiKey: providerData.api_key_encrypted || process.env[`${providerData.type.toUpperCase()}_API_KEY`],
-        baseUrl: providerData.base_url,
-        ...providerData.config,
+        apiKey: (providerData as any).api_key_encrypted || process.env[`${(providerData as any).type.toUpperCase()}_API_KEY`],
+        baseUrl: (providerData as any).base_url,
+        ...(providerData as any).config,
       }
 
       const models = await provider.listModels(providerConfig)
@@ -87,8 +88,10 @@ export async function GET(request: NextRequest) {
     }
 
     const allModels = []
-    for (const providerData of providers) {
+    for (const providerItem of providers) {
       try {
+        // Type assertion for Supabase query result
+        const providerData = providerItem as any
         const provider = createProvider(providerData.type)
         const providerConfig = {
           apiKey: providerData.api_key_encrypted || process.env[`${providerData.type.toUpperCase()}_API_KEY`],
@@ -100,7 +103,7 @@ export async function GET(request: NextRequest) {
       } catch (error: any) {
         structuredLog('warn', 'Failed to fetch models from provider', {
           correlationId,
-          provider: providerData.name,
+          provider: (providerItem as any).name,
           error: error.message,
         })
       }

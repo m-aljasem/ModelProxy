@@ -40,6 +40,12 @@ export async function checkRateLimit(
   tokenId: string,
   rateLimitPerMinute: number
 ): Promise<{ allowed: boolean; remaining: number }> {
+  if (!supabaseAdmin) {
+    // If admin client is not initialized, allow the request
+    console.error('Supabase admin client not initialized for rate limit check')
+    return { allowed: true, remaining: rateLimitPerMinute }
+  }
+
   const oneMinuteAgo = new Date(Date.now() - 60 * 1000).toISOString()
 
   const { data, error } = await supabaseAdmin
@@ -67,6 +73,12 @@ export async function checkQuota(
 ): Promise<{ allowed: boolean; remaining: number | null }> {
   if (monthlyQuota === null) {
     return { allowed: true, remaining: null }
+  }
+
+  if (!supabaseAdmin) {
+    // If admin client is not initialized, allow the request
+    console.error('Supabase admin client not initialized for quota check')
+    return { allowed: true, remaining: monthlyQuota }
   }
 
   const startOfMonth = new Date()

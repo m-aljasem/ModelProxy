@@ -99,12 +99,13 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: error.message }, { status: 500 })
     }
 
-    if (userId) {
+    if (userId && data) {
+      const endpointData = data as any
       await logAudit({
         userId,
         action: 'endpoint.created',
         resourceType: 'endpoint',
-        resourceId: data.id,
+        resourceId: endpointData.id,
         details: { name, path, model },
         ipAddress: request.headers.get('x-forwarded-for')?.split(',')[0] || null,
       })

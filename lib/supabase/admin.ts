@@ -1,8 +1,8 @@
 import { createClient } from '@supabase/supabase-js'
 
 // Custom fetch with timeout and better error handling for WSL2
-function createFetchWithTimeout(timeoutMs: number = 30000) {
-  return async (url: string, options?: RequestInit): Promise<Response> => {
+function createFetchWithTimeout(timeoutMs: number = 30000): typeof fetch {
+  return async (url: string | URL | Request, options?: RequestInit): Promise<Response> => {
     const controller = new AbortController()
     const timeoutId = setTimeout(() => controller.abort(), timeoutMs)
 

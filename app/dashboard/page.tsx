@@ -8,6 +8,16 @@ export default async function DashboardPage() {
   const { data: { session } } = await supabase.auth.getSession()
 
   // Get stats
+  if (!supabaseAdmin) {
+    // Return default stats if admin client is not initialized
+    return (
+      <div className="p-8">
+        <h1 className="text-2xl font-bold text-red-600">Configuration Error</h1>
+        <p className="mt-2 text-gray-600">Supabase admin client not initialized. Please check environment variables.</p>
+      </div>
+    )
+  }
+
   const [providersResult, endpointsResult, tokensResult, usageResult, successResult] = await Promise.all([
     supabaseAdmin.from('providers').select('id', { count: 'exact', head: true }),
     supabaseAdmin.from('endpoints').select('id', { count: 'exact', head: true }),

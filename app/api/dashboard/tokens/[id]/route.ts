@@ -8,7 +8,7 @@ export async function DELETE(
   { params }: { params: { id: string } }
 ) {
   try {
-    const supabase = createApiRouteClient(request)
+    const { client: supabase } = createApiRouteClient(request)
     const { data: { session } } = await supabase.auth.getSession()
 
     if (!session) {

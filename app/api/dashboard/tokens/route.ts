@@ -5,7 +5,7 @@ import { logAudit } from '@/lib/utils/logger'
 
 export async function POST(request: NextRequest) {
   try {
-    const supabase = createApiRouteClient(request)
+    const { client: supabase } = createApiRouteClient(request)
     const { data: { session } } = await supabase.auth.getSession()
 
     if (!session) {
