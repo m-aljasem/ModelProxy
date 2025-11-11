@@ -1,22 +1,28 @@
 import { createClient } from '@supabase/supabase-js'
 
 // Custom fetch with timeout and better error handling for WSL2
+// This preserves all headers set by Supabase client (especially Authorization)
 function createFetchWithTimeout(timeoutMs: number = 30000): typeof fetch {
   return async (url: string | URL | Request, options?: RequestInit): Promise<Response> => {
     const controller = new AbortController()
     const timeoutId = setTimeout(() => controller.abort(), timeoutMs)
 
     try {
+      // Preserve all existing headers (especially Authorization and apikey from Supabase)
+      const existingHeaders = options?.headers || {}
+      const headers = new Headers(existingHeaders)
+      
+      // Only add Connection header if not already present
+      if (!headers.has('Connection')) {
+        headers.set('Connection', 'keep-alive')
+      }
+
       // Add keepalive and other options for better WSL2 compatibility
       const fetchOptions: RequestInit = {
         ...options,
         signal: controller.signal,
         keepalive: true,
-        // Add headers to help with connection
-        headers: {
-          ...(options?.headers || {}),
-          'Connection': 'keep-alive',
-        },
+        headers: headers, // Use the merged headers
       }
 
       const response = await fetch(url, fetchOptions)
@@ -62,15 +68,26 @@ try {
     throw new Error('SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY must be set')
   }
 
+  // Create admin client with service role key
+  // The service role key bypasses RLS policies
+  // Supabase client automatically sets Authorization and apikey headers
   supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey, {
     auth: {
       autoRefreshToken: false,
       persistSession: false,
+      detectSessionInUrl: false,
     },
     global: {
       fetch: createFetchWithTimeout(30000), // 30 second timeout for WSL2
+      // Don't override headers - let Supabase set Authorization and apikey automatically
     },
   })
+  
+  // Verify the client is properly initialized
+  if (supabaseAdmin) {
+    console.log('Supabase admin client initialized successfully')
+    console.log('Service role key present:', !!supabaseServiceKey && supabaseServiceKey.length > 0)
+  }
 } catch (error) {
   console.error('Failed to initialize Supabase admin client:', error)
   // Don't throw - let the API routes handle the error

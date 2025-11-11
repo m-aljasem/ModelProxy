@@ -10,12 +10,17 @@ export async function GET(request: NextRequest) {
     // Check if admin client is properly initialized
     if (!supabaseAdmin) {
       console.error('Supabase admin client not initialized - check environment variables')
+      const hasUrl = !!process.env.SUPABASE_URL
+      const hasServiceKey = !!process.env.SUPABASE_SERVICE_ROLE_KEY
+      console.error('Environment check:', { hasUrl, hasServiceKey })
       return NextResponse.json({ 
-        error: 'Server configuration error: Supabase admin client not initialized. Please check SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY environment variables.' 
+        error: 'Server configuration error: Supabase admin client not initialized. Please check SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY environment variables.',
+        details: { hasUrl, hasServiceKey }
       }, { status: 500 })
     }
 
     console.log('Fetching providers from database...')
+    console.log('Using admin client (bypasses RLS)')
     
     // Use admin client to bypass RLS - this doesn't need session check
     const result = await supabaseAdmin
@@ -27,11 +32,26 @@ export async function GET(request: NextRequest) {
       hasData: !!result.data, 
       dataLength: result.data?.length || 0,
       hasError: !!result.error,
-      error: result.error?.message || null
+      error: result.error?.message || null,
+      errorCode: result.error?.code || null,
+      errorDetails: result.error?.details || null,
+      errorHint: result.error?.hint || null
     })
 
     if (result.error) {
       console.error('Database error:', result.error)
+      console.error('Full error object:', JSON.stringify(result.error, null, 2))
+      
+      // Check for authentication errors specifically
+      if (result.error.code === 'PGRST301' || result.error.message?.includes('JWT') || result.error.message?.includes('401')) {
+        return NextResponse.json({ 
+          error: 'Authentication failed. Please verify SUPABASE_SERVICE_ROLE_KEY is correct and has not expired.',
+          details: result.error.details || null,
+          hint: 'Check your Supabase project settings → API → service_role key',
+          code: result.error.code || null
+        }, { status: 500 })
+      }
+      
       return NextResponse.json({ 
         error: result.error.message || 'Database query failed',
         details: result.error.details || null,
