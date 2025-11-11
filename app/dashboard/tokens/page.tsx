@@ -84,7 +84,7 @@ export default function TokensPage() {
 
       {newToken && (
         <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 mb-6">
-          <p className="font-semibold text-yellow-800">Token created! Copy it now - you won't see it again:</p>
+          <p className="font-semibold text-yellow-800">Token created! Copy it now - you won&apos;t see it again:</p>
           <code className="block mt-2 p-2 bg-yellow-100 rounded text-sm break-all">{newToken}</code>
           <button
             onClick={() => {
