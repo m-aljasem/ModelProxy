@@ -6,6 +6,13 @@ export const runtime = 'nodejs'
 export async function GET() {
   try {
     // Check database connection
+    if (!supabaseAdmin) {
+      return NextResponse.json(
+        { status: 'unhealthy', error: 'Supabase admin client not initialized' },
+        { status: 503 }
+      )
+    }
+
     const { error } = await supabaseAdmin.from('providers').select('id').limit(1)
     
     if (error) {

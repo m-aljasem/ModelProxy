@@ -18,6 +18,13 @@ export async function GET(request: NextRequest) {
       // Continue without session - admin client will handle it
     }
 
+    if (!supabaseAdmin) {
+      return NextResponse.json(
+        { error: 'Server configuration error: Supabase admin client not initialized' },
+        { status: 500 }
+      )
+    }
+
     const { data, error } = await supabaseAdmin
       .from('endpoints')
       .select('*, providers(name, type)')
@@ -68,6 +75,13 @@ export async function POST(request: NextRequest) {
     const { name, path, model, provider_id, config } = body
 
     // Use admin client to bypass RLS
+    if (!supabaseAdmin) {
+      return NextResponse.json(
+        { error: 'Server configuration error: Supabase admin client not initialized' },
+        { status: 500 }
+      )
+    }
+
     const { data, error } = await supabaseAdmin
       .from('endpoints')
       .insert({

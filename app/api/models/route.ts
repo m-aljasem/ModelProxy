@@ -32,6 +32,13 @@ export async function GET(request: NextRequest) {
 
     if (providerName) {
       // Get specific provider
+      if (!supabaseAdmin) {
+        return NextResponse.json(
+          { error: 'Server configuration error: Supabase admin client not initialized' },
+          { status: 500 }
+        )
+      }
+
       const { data: providerData, error: providerError } = await supabaseAdmin
         .from('providers')
         .select('*')
@@ -60,6 +67,13 @@ export async function GET(request: NextRequest) {
     }
 
     // Get all active providers and their models
+    if (!supabaseAdmin) {
+      return NextResponse.json(
+        { error: 'Server configuration error: Supabase admin client not initialized' },
+        { status: 500 }
+      )
+    }
+
     const { data: providers, error: providersError } = await supabaseAdmin
       .from('providers')
       .select('*')

@@ -79,6 +79,13 @@ export async function POST(request: NextRequest) {
     }
 
     // Get endpoint configuration
+    if (!supabaseAdmin) {
+      return NextResponse.json(
+        { error: 'Server configuration error: Supabase admin client not initialized' },
+        { status: 500 }
+      )
+    }
+
     const { data: endpointData, error: endpointError } = await supabaseAdmin
       .from('endpoints')
       .select('*, providers(*)')
