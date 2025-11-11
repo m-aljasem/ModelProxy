@@ -101,25 +101,25 @@ export async function POST(request: NextRequest) {
     }
 
     // Type assertion for joined query result
-    const endpoint = endpointData as any
-    if (!endpoint.providers) {
+    const endpointConfig = endpointData as any
+    if (!endpointConfig.providers) {
       return NextResponse.json(
         { error: 'Provider configuration not found' },
         { status: 500 }
       )
     }
 
-    const provider = createProvider(endpoint.providers.type)
+    const provider = createProvider(endpointConfig.providers.type)
     const providerConfig = {
-      apiKey: endpoint.providers.api_key_encrypted || process.env[`${endpoint.providers.type.toUpperCase()}_API_KEY`],
-      baseUrl: endpoint.providers.base_url,
-      ...endpoint.providers.config,
+      apiKey: endpointConfig.providers.api_key_encrypted || process.env[`${endpointConfig.providers.type.toUpperCase()}_API_KEY`],
+      baseUrl: endpointConfig.providers.base_url,
+      ...endpointConfig.providers.config,
     }
 
     // Merge endpoint config with request
     const finalRequest = {
-      model: endpoint.model,
-      ...endpoint.config,
+      model: endpointConfig.model,
+      ...endpointConfig.config,
       ...chatRequest,
     }
 
@@ -141,14 +141,14 @@ export async function POST(request: NextRequest) {
             const latencyMs = Date.now() - startTime
             await logUsage({
               tokenId: tokenData.id,
-              endpointId: endpoint.id,
-              providerId: endpoint.provider_id,
+              endpointId: endpointConfig.id,
+              providerId: endpointConfig.provider_id,
               status: 'success',
               statusCode: 200,
               latencyMs,
               requestSize,
               responseSize: 0, // Streaming, size unknown
-              model: endpoint.model,
+              model: endpointConfig.model,
               costEstimate: null,
               errorMessage: null,
               correlationId,
@@ -160,14 +160,14 @@ export async function POST(request: NextRequest) {
             const latencyMs = Date.now() - startTime
             await logUsage({
               tokenId: tokenData.id,
-              endpointId: endpoint.id,
-              providerId: endpoint.provider_id,
+              endpointId: endpointConfig.id,
+              providerId: endpointConfig.provider_id,
               status: 'error',
               statusCode: 500,
               latencyMs,
               requestSize,
               responseSize: 0,
-              model: endpoint.model,
+              model: endpointConfig.model,
               costEstimate: null,
               errorMessage: error.message,
               correlationId,
@@ -196,14 +196,14 @@ export async function POST(request: NextRequest) {
 
     await logUsage({
       tokenId: tokenData.id,
-      endpointId: endpoint.id,
-      providerId: endpoint.provider_id,
+      endpointId: endpointConfig.id,
+      providerId: endpointConfig.provider_id,
       status: 'success',
       statusCode: 200,
       latencyMs,
       requestSize,
       responseSize,
-      model: endpoint.model,
+      model: endpointConfig.model,
       costEstimate: null,
       errorMessage: null,
       correlationId,
