@@ -222,21 +222,40 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    // Ensure data exists before returning
+    if (!data) {
+      console.error('No data returned from insert operation')
+      return NextResponse.json({ 
+        error: 'Failed to create endpoint - data not available',
+        message: 'Endpoint may have been created but data could not be retrieved. Please refresh the page.'
+      }, { status: 500 })
+    }
+
+    // Log audit if we have a user and data with an ID
     if (userId && data) {
       const endpointData = data as any
-      await logAudit({
-        userId,
-        action: 'endpoint.created',
-        resourceType: 'endpoint',
-        resourceId: endpointData.id,
-        details: { name, path, model },
-        ipAddress: request.headers.get('x-forwarded-for')?.split(',')[0] || null,
-      })
+      try {
+        await logAudit({
+          userId,
+          action: 'endpoint.created',
+          resourceType: 'endpoint',
+          resourceId: endpointData.id || null,
+          details: { name, path, model },
+          ipAddress: request.headers.get('x-forwarded-for')?.split(',')[0] || null,
+        })
+      } catch (auditError) {
+        // Don't fail the request if audit logging fails
+        console.error('Audit logging failed:', auditError)
+      }
     }
 
     return NextResponse.json({ data }, { headers: response.headers })
   } catch (error: any) {
-    return NextResponse.json({ error: error.message }, { status: 500 })
+    console.error('Unexpected error in POST /api/dashboard/endpoints:', error)
+    return NextResponse.json({ 
+      error: error?.message || 'Internal server error',
+      details: process.env.NODE_ENV === 'development' ? String(error) : undefined
+    }, { status: 500 })
   }
 }
 

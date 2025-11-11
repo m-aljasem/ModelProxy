@@ -24,14 +24,19 @@ export async function POST(request: NextRequest) {
       session.user.id
     )
 
-    await logAudit({
-      userId: session.user.id,
-      action: 'token.created',
-      resourceType: 'token',
-      resourceId: tokenData.id,
-      details: { name, scopes },
-      ipAddress: request.headers.get('x-forwarded-for')?.split(',')[0] || null,
-    })
+    try {
+      await logAudit({
+        userId: session.user.id,
+        action: 'token.created',
+        resourceType: 'token',
+        resourceId: tokenData.id,
+        details: { name, scopes },
+        ipAddress: request.headers.get('x-forwarded-for')?.split(',')[0] || null,
+      })
+    } catch (auditError) {
+      // Don't fail the request if audit logging fails
+      console.error('Audit logging failed:', auditError)
+    }
 
     return NextResponse.json({ token, tokenData })
   } catch (error: any) {

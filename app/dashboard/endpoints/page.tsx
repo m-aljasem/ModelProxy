@@ -32,7 +32,19 @@ export default function EndpointsPage() {
   const loadEndpoints = async () => {
     try {
       const response = await fetch('/api/dashboard/endpoints')
-      const result = await response.json()
+      let result: any = {}
+      
+      try {
+        const text = await response.text()
+        if (text) {
+          result = JSON.parse(text)
+        }
+      } catch (parseError) {
+        console.error('Failed to parse JSON response:', parseError)
+        if (!response.ok) {
+          result = { error: `Server returned ${response.status}` }
+        }
+      }
       
       if (response.ok && result.data) {
         setEndpoints(result.data)
@@ -49,7 +61,16 @@ export default function EndpointsPage() {
   const loadProviders = async () => {
     try {
       const response = await fetch('/api/dashboard/providers')
-      const result = await response.json()
+      let result: any = {}
+      
+      try {
+        const text = await response.text()
+        if (text) {
+          result = JSON.parse(text)
+        }
+      } catch (parseError) {
+        console.error('Failed to parse JSON response:', parseError)
+      }
       
       if (response.ok && result.data) {
         setProviders(result.data.filter((p: any) => p.is_active).map((p: any) => ({ id: p.id, name: p.name })))
@@ -75,7 +96,22 @@ export default function EndpointsPage() {
         body: JSON.stringify(formData),
       })
 
-      const result = await response.json()
+      // Parse JSON response with error handling
+      let result: any = {}
+      try {
+        const text = await response.text()
+        if (text) {
+          result = JSON.parse(text)
+        }
+      } catch (parseError) {
+        console.error('Failed to parse JSON response:', parseError)
+        // If response is ok but JSON parsing failed, still treat as success
+        if (response.ok) {
+          result = { message: 'Endpoint saved successfully' }
+        } else {
+          throw new Error('Invalid response from server')
+        }
+      }
 
       if (response.ok) {
         setShowForm(false)
@@ -83,12 +119,14 @@ export default function EndpointsPage() {
         setFormData({ name: '', path: '', model: '', provider_id: '' })
         loadEndpoints()
       } else {
-        console.error('Error saving endpoint:', result.error)
-        alert(`Error: ${result.error}`)
+        const errorMessage = result.error || result.message || `Server returned ${response.status}`
+        console.error('Error saving endpoint:', errorMessage)
+        alert(`Error: ${errorMessage}`)
       }
     } catch (error: any) {
       console.error('Error saving endpoint:', error)
-      alert(`Error: ${error.message}`)
+      const errorMessage = error.message || 'Failed to save endpoint. Please try again.'
+      alert(`Error: ${errorMessage}`)
     } finally {
       setLoading(false)
     }
@@ -116,17 +154,29 @@ export default function EndpointsPage() {
         method: 'DELETE',
       })
 
-      const result = await response.json()
+      let result: any = {}
+      try {
+        const text = await response.text()
+        if (text) {
+          result = JSON.parse(text)
+        }
+      } catch (parseError) {
+        console.error('Failed to parse JSON response:', parseError)
+        if (!response.ok) {
+          result = { error: `Server returned ${response.status}` }
+        }
+      }
 
       if (response.ok) {
         loadEndpoints()
       } else {
-        console.error('Error deleting endpoint:', result.error)
-        alert(`Error: ${result.error}`)
+        const errorMessage = result.error || `Server returned ${response.status}`
+        console.error('Error deleting endpoint:', errorMessage)
+        alert(`Error: ${errorMessage}`)
       }
     } catch (error: any) {
       console.error('Error deleting endpoint:', error)
-      alert(`Error: ${error.message}`)
+      alert(`Error: ${error.message || 'Failed to delete endpoint'}`)
     } finally {
       setLoading(false)
     }

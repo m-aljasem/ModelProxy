@@ -16,7 +16,7 @@ export function createApiRouteClient(
     throw new Error('Missing SUPABASE_URL or SUPABASE_ANON_KEY environment variables')
   }
 
-  let responseRef = response || NextResponse.next()
+  let responseRef = response || new NextResponse()
 
   return {
     client: createServerClient(

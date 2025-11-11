@@ -59,7 +59,20 @@ export default function TokensPage() {
         body: JSON.stringify(formData),
       })
 
-      const result = await response.json()
+      let result: any = {}
+      try {
+        const text = await response.text()
+        if (text) {
+          result = JSON.parse(text)
+        }
+      } catch (parseError) {
+        console.error('Failed to parse JSON response:', parseError)
+        if (response.ok) {
+          result = { message: 'Token saved successfully' }
+        } else {
+          result = { error: `Server returned ${response.status}` }
+        }
+      }
       
       if (response.ok) {
         if (result.token) {
@@ -70,8 +83,9 @@ export default function TokensPage() {
         setFormData({ name: '', scopes: ['all'], rate_limit_per_minute: 60, monthly_quota: null })
         loadTokens()
       } else {
-        console.error('Error saving token:', result.error)
-        alert(`Error: ${result.error || 'Failed to save token'}`)
+        const errorMessage = result.error || `Server returned ${response.status}`
+        console.error('Error saving token:', errorMessage)
+        alert(`Error: ${errorMessage}`)
       }
     } catch (error: any) {
       console.error('Error saving token:', error)

@@ -89,14 +89,19 @@ export async function PUT(
     }
 
     if (userId) {
-      await logAudit({
-        userId,
-        action: 'token.updated',
-        resourceType: 'token',
-        resourceId: params.id,
-        details: { name, scopes },
-        ipAddress: request.headers.get('x-forwarded-for')?.split(',')[0] || null,
-      })
+      try {
+        await logAudit({
+          userId,
+          action: 'token.updated',
+          resourceType: 'token',
+          resourceId: params.id,
+          details: { name, scopes },
+          ipAddress: request.headers.get('x-forwarded-for')?.split(',')[0] || null,
+        })
+      } catch (auditError) {
+        // Don't fail the request if audit logging fails
+        console.error('Audit logging failed:', auditError)
+      }
     }
 
     return NextResponse.json({ data })
@@ -119,14 +124,19 @@ export async function DELETE(
 
     await revokeToken(params.id)
 
-    await logAudit({
-      userId: session.user.id,
-      action: 'token.revoked',
-      resourceType: 'token',
-      resourceId: params.id,
-      details: {},
-      ipAddress: request.headers.get('x-forwarded-for')?.split(',')[0] || null,
-    })
+    try {
+      await logAudit({
+        userId: session.user.id,
+        action: 'token.revoked',
+        resourceType: 'token',
+        resourceId: params.id,
+        details: {},
+        ipAddress: request.headers.get('x-forwarded-for')?.split(',')[0] || null,
+      })
+    } catch (auditError) {
+      // Don't fail the request if audit logging fails
+      console.error('Audit logging failed:', auditError)
+    }
 
     return NextResponse.json({ success: true })
   } catch (error: any) {

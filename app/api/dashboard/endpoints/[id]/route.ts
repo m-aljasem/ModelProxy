@@ -93,14 +93,19 @@ export async function PUT(
     }
 
     if (userId) {
-      await logAudit({
-        userId,
-        action: 'endpoint.updated',
-        resourceType: 'endpoint',
-        resourceId: params.id,
-        details: { name, path, model },
-        ipAddress: request.headers.get('x-forwarded-for')?.split(',')[0] || null,
-      })
+      try {
+        await logAudit({
+          userId,
+          action: 'endpoint.updated',
+          resourceType: 'endpoint',
+          resourceId: params.id,
+          details: { name, path, model },
+          ipAddress: request.headers.get('x-forwarded-for')?.split(',')[0] || null,
+        })
+      } catch (auditError) {
+        // Don't fail the request if audit logging fails
+        console.error('Audit logging failed:', auditError)
+      }
     }
 
     return NextResponse.json({ data })
@@ -164,14 +169,19 @@ export async function DELETE(
 
     if (userId && endpointData) {
       const endpoint = endpointData as any
-      await logAudit({
-        userId,
-        action: 'endpoint.deleted',
-        resourceType: 'endpoint',
-        resourceId: params.id,
-        details: { name: endpoint.name },
-        ipAddress: request.headers.get('x-forwarded-for')?.split(',')[0] || null,
-      })
+      try {
+        await logAudit({
+          userId,
+          action: 'endpoint.deleted',
+          resourceType: 'endpoint',
+          resourceId: params.id,
+          details: { name: endpoint.name },
+          ipAddress: request.headers.get('x-forwarded-for')?.split(',')[0] || null,
+        })
+      } catch (auditError) {
+        // Don't fail the request if audit logging fails
+        console.error('Audit logging failed:', auditError)
+      }
     }
 
     return NextResponse.json({ success: true })
