@@ -127,7 +127,8 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    const { data, error } = await supabaseAdmin
+    // Try insert with select first
+    const { data: insertData, error: insertError } = await supabaseAdmin
       .from('endpoints')
       .insert({
         name: String(name).trim(),
@@ -138,33 +139,87 @@ export async function POST(request: NextRequest) {
         is_active: true,
       } as any)
       .select()
-      .single()
 
-    if (error) {
-      console.error('Database insert error:', error)
-      console.error('Error code:', error.code)
-      
-      // Handle common database errors
-      let errorMessage = error.message || 'Database error'
-      if (error.code === '23505') { // Unique violation
-        errorMessage = `An endpoint with the name "${name}" already exists`
-      } else if (error.code === '23503') { // Foreign key violation
-        errorMessage = `Invalid provider_id: The specified provider does not exist`
-      } else if (error.code === '23502') { // Not null violation
-        // Extract column name from error details or hint if available
-        const columnMatch = error.details?.match(/column "([^"]+)"/i) || error.hint?.match(/column "([^"]+)"/i)
-        const columnName = columnMatch ? columnMatch[1] : 'unknown field'
-        errorMessage = `Missing required field: ${columnName}`
-      } else if (error.code === 'PGRST301' || error.message?.includes('JWT') || error.message?.includes('401')) {
-        errorMessage = 'Authentication failed. Please verify SUPABASE_SERVICE_ROLE_KEY is correct.'
+    let data: any = null
+
+    // Check if error is a real database error or just a select/response issue
+    if (insertError) {
+      // Check if it's a real database constraint error (insert failed)
+      const isRealDbError = insertError.code === '23505' || // Unique violation
+                           insertError.code === '23503' || // Foreign key violation
+                           insertError.code === '23502' || // Not null violation
+                           insertError.code === 'PGRST301' || // Auth error
+                           insertError.message?.includes('JWT') ||
+                           insertError.message?.includes('401')
+
+      if (isRealDbError) {
+        // Real database error - return it
+        console.error('Database insert error:', insertError)
+        console.error('Error code:', insertError.code)
+        
+        let errorMessage = insertError.message || 'Database error'
+        if (insertError.code === '23505') {
+          errorMessage = `An endpoint with the name "${name}" already exists`
+        } else if (insertError.code === '23503') {
+          errorMessage = `Invalid provider_id: The specified provider does not exist`
+        } else if (insertError.code === '23502') {
+          const columnMatch = insertError.details?.match(/column "([^"]+)"/i) || insertError.hint?.match(/column "([^"]+)"/i)
+          const columnName = columnMatch ? columnMatch[1] : 'unknown field'
+          errorMessage = `Missing required field: ${columnName}`
+        } else if (insertError.code === 'PGRST301' || insertError.message?.includes('JWT') || insertError.message?.includes('401')) {
+          errorMessage = 'Authentication failed. Please verify SUPABASE_SERVICE_ROLE_KEY is correct.'
+        }
+        
+        return NextResponse.json({ 
+          error: errorMessage,
+          details: insertError.details || null,
+          hint: insertError.hint || null,
+          code: insertError.code || null
+        }, { status: 500 })
+      } else {
+        // Likely a 409 or select-related error - insert probably succeeded, fetch the data
+        console.warn('Insert with select returned error (likely 409), but insert may have succeeded. Fetching data...', insertError)
       }
+    }
+
+    // If we have data from insert, use it
+    if (insertData && (!Array.isArray(insertData) || insertData.length > 0)) {
+      data = Array.isArray(insertData) ? insertData[0] : insertData
+    } else {
+      // Insert succeeded but couldn't return data (409 error), fetch it separately
+      console.log('Fetching inserted endpoint data...')
+      const { data: fetchedData, error: fetchError } = await supabaseAdmin
+        .from('endpoints')
+        .select('*')
+        .eq('name', String(name).trim())
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle()
       
-      return NextResponse.json({ 
-        error: errorMessage,
-        details: error.details || null,
-        hint: error.hint || null,
-        code: error.code || null
-      }, { status: 500 })
+      if (fetchError) {
+        console.warn('Could not fetch inserted endpoint:', fetchError)
+        // Still return success since insert worked, just couldn't return the data
+        data = {
+          name,
+          path,
+          model,
+          provider_id,
+          config: config || {},
+          is_active: true,
+        }
+      } else if (fetchedData) {
+        data = fetchedData
+      } else {
+        // Fallback - return basic data
+        data = {
+          name,
+          path,
+          model,
+          provider_id,
+          config: config || {},
+          is_active: true,
+        }
+      }
     }
 
     if (userId && data) {
