@@ -151,7 +151,10 @@ export async function POST(request: NextRequest) {
       } else if (error.code === '23503') { // Foreign key violation
         errorMessage = `Invalid provider_id: The specified provider does not exist`
       } else if (error.code === '23502') { // Not null violation
-        errorMessage = `Missing required field: ${error.column || 'unknown field'}`
+        // Extract column name from error details or hint if available
+        const columnMatch = error.details?.match(/column "([^"]+)"/i) || error.hint?.match(/column "([^"]+)"/i)
+        const columnName = columnMatch ? columnMatch[1] : 'unknown field'
+        errorMessage = `Missing required field: ${columnName}`
       } else if (error.code === 'PGRST301' || error.message?.includes('JWT') || error.message?.includes('401')) {
         errorMessage = 'Authentication failed. Please verify SUPABASE_SERVICE_ROLE_KEY is correct.'
       }

@@ -207,7 +207,10 @@ export async function POST(request: NextRequest) {
       if (error.code === '23505') { // Unique violation
         errorMessage = `A provider with the name "${name}" already exists`
       } else if (error.code === '23502') { // Not null violation
-        errorMessage = `Missing required field: ${error.column || 'unknown field'}`
+        // Extract column name from error details or hint if available
+        const columnMatch = error.details?.match(/column "([^"]+)"/i) || error.hint?.match(/column "([^"]+)"/i)
+        const columnName = columnMatch ? columnMatch[1] : 'unknown field'
+        errorMessage = `Missing required field: ${columnName}`
       } else if (error.code === '23514') { // Check violation
         errorMessage = `Invalid data: ${error.message}`
       } else if (error.message?.includes('invalid input value for enum')) {
