@@ -18,6 +18,7 @@ export default function TokensPage() {
   const [tokens, setTokens] = useState<Token[]>([])
   const [loading, setLoading] = useState(true)
   const [showForm, setShowForm] = useState(false)
+  const [editingId, setEditingId] = useState<string | null>(null)
   const [newToken, setNewToken] = useState<string | null>(null)
   const [formData, setFormData] = useState({
     name: '',
@@ -44,19 +45,57 @@ export default function TokensPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    const response = await fetch('/api/dashboard/tokens', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(formData),
-    })
+    setLoading(true)
+    
+    try {
+      const url = editingId 
+        ? `/api/dashboard/tokens/${editingId}`
+        : '/api/dashboard/tokens'
+      const method = editingId ? 'PUT' : 'POST'
 
-    const result = await response.json()
-    if (result.token) {
-      setNewToken(result.token)
-      setShowForm(false)
-      setFormData({ name: '', scopes: ['all'], rate_limit_per_minute: 60, monthly_quota: null })
-      loadTokens()
+      const response = await fetch(url, {
+        method,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(formData),
+      })
+
+      const result = await response.json()
+      
+      if (response.ok) {
+        if (result.token) {
+          setNewToken(result.token)
+        }
+        setShowForm(false)
+        setEditingId(null)
+        setFormData({ name: '', scopes: ['all'], rate_limit_per_minute: 60, monthly_quota: null })
+        loadTokens()
+      } else {
+        console.error('Error saving token:', result.error)
+        alert(`Error: ${result.error || 'Failed to save token'}`)
+      }
+    } catch (error: any) {
+      console.error('Error saving token:', error)
+      alert(`Error: ${error.message || 'Failed to save token'}`)
+    } finally {
+      setLoading(false)
     }
+  }
+
+  const handleEdit = (token: Token) => {
+    setEditingId(token.id)
+    setFormData({
+      name: token.name,
+      scopes: token.scopes,
+      rate_limit_per_minute: token.rate_limit_per_minute,
+      monthly_quota: token.monthly_quota,
+    })
+    setShowForm(true)
+  }
+
+  const handleCancel = () => {
+    setShowForm(false)
+    setEditingId(null)
+    setFormData({ name: '', scopes: ['all'], rate_limit_per_minute: 60, monthly_quota: null })
   }
 
   const handleRevoke = async (tokenId: string) => {
@@ -75,7 +114,13 @@ export default function TokensPage() {
       <div className="flex justify-between items-center mb-6">
         <h1 className="text-3xl font-bold text-gray-900">API Tokens</h1>
         <button
-          onClick={() => setShowForm(!showForm)}
+          onClick={() => {
+            if (showForm) {
+              handleCancel()
+            } else {
+              setShowForm(true)
+            }
+          }}
           className="px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700"
         >
           {showForm ? 'Cancel' : 'Create Token'}
@@ -100,7 +145,9 @@ export default function TokensPage() {
 
       {showForm && (
         <div className="bg-white rounded-lg shadow p-6 mb-6">
-          <h2 className="text-xl font-semibold mb-4">Create Token</h2>
+          <h2 className="text-xl font-semibold mb-4">
+            {editingId ? 'Edit Token' : 'Create Token'}
+          </h2>
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
               <label className="block text-sm font-medium text-gray-700">Name</label>
@@ -159,7 +206,7 @@ export default function TokensPage() {
               type="submit"
               className="px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700"
             >
-              Create
+              {editingId ? 'Update' : 'Create'}
             </button>
           </form>
         </div>
@@ -203,7 +250,13 @@ export default function TokensPage() {
                     {token.is_active ? 'Active' : 'Revoked'}
                   </span>
                 </td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm">
+                <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                  <button
+                    onClick={() => handleEdit(token)}
+                    className="text-indigo-600 hover:text-indigo-900 mr-4"
+                  >
+                    Edit
+                  </button>
                   {token.is_active && (
                     <button
                       onClick={() => handleRevoke(token.id)}

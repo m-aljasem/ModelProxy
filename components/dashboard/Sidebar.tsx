@@ -11,6 +11,7 @@ import {
   BarChart3,
   FileText,
   Settings,
+  TestTube,
 } from 'lucide-react'
 
 const navigation = [
@@ -18,6 +19,7 @@ const navigation = [
   { name: 'Endpoints', href: '/dashboard/endpoints', icon: Network },
   { name: 'Tokens', href: '/dashboard/tokens', icon: Key },
   { name: 'Providers', href: '/dashboard/providers', icon: Server },
+  { name: 'Test', href: '/dashboard/test', icon: TestTube },
   { name: 'Usage', href: '/dashboard/usage', icon: BarChart3 },
   { name: 'Logs', href: '/dashboard/logs', icon: FileText },
   { name: 'Settings', href: '/dashboard/settings', icon: Settings },

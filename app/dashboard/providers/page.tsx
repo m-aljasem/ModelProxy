@@ -14,6 +14,7 @@ export default function ProvidersPage() {
   const [providers, setProviders] = useState<Provider[]>([])
   const [loading, setLoading] = useState(true)
   const [showForm, setShowForm] = useState(false)
+  const [editingId, setEditingId] = useState<string | null>(null)
   const [formData, setFormData] = useState({
     name: '',
     type: 'openai',
@@ -47,8 +48,13 @@ export default function ProvidersPage() {
     setLoading(true)
     
     try {
-      const response = await fetch('/api/dashboard/providers', {
-        method: 'POST',
+      const url = editingId 
+        ? `/api/dashboard/providers/${editingId}`
+        : '/api/dashboard/providers'
+      const method = editingId ? 'PUT' : 'POST'
+
+      const response = await fetch(url, {
+        method,
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           name: formData.name,
@@ -85,19 +91,64 @@ export default function ProvidersPage() {
 
       if (result.data) {
         setShowForm(false)
+        setEditingId(null)
         setFormData({ name: '', type: 'openai', api_key: '', base_url: '' })
         // Reload providers list
         await loadProviders()
       } else {
-        console.error('Error creating provider:', result.error)
+        console.error('Error saving provider:', result.error)
         alert(`Error: ${result.error || 'Unknown error'}`)
       }
     } catch (error: any) {
-      console.error('Error creating provider:', error)
-      alert(`Error: ${error.message || 'Failed to create provider'}`)
+      console.error('Error saving provider:', error)
+      alert(`Error: ${error.message || 'Failed to save provider'}`)
     } finally {
       setLoading(false)
     }
+  }
+
+  const handleEdit = (provider: Provider) => {
+    setEditingId(provider.id)
+    setFormData({
+      name: provider.name,
+      type: provider.type,
+      api_key: '', // Don't show existing API key for security
+      base_url: '', // We'll need to fetch this if needed
+    })
+    setShowForm(true)
+  }
+
+  const handleDelete = async (id: string) => {
+    if (!confirm('Are you sure you want to delete this provider? This will also delete all associated endpoints.')) {
+      return
+    }
+
+    setLoading(true)
+    try {
+      const response = await fetch(`/api/dashboard/providers/${id}`, {
+        method: 'DELETE',
+      })
+
+      const result = await response.json()
+
+      if (response.ok) {
+        loadProviders()
+      } else {
+        console.error('Error deleting provider:', result.error)
+        alert(`Error: ${result.error}`)
+      }
+    } catch (error: any) {
+      console.error('Error deleting provider:', error)
+      alert(`Error: ${error.message}`)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleCancel = () => {
+    setShowForm(false)
+    setEditingId(null)
+    setFormData({ name: '', type: 'openai', api_key: '', base_url: '' })
   }
 
   if (loading) {
@@ -109,7 +160,13 @@ export default function ProvidersPage() {
       <div className="flex justify-between items-center mb-6">
         <h1 className="text-3xl font-bold text-gray-900">Providers</h1>
         <button
-          onClick={() => setShowForm(!showForm)}
+          onClick={() => {
+            if (showForm) {
+              handleCancel()
+            } else {
+              setShowForm(true)
+            }
+          }}
           className="px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700"
         >
           {showForm ? 'Cancel' : 'Add Provider'}
@@ -118,7 +175,9 @@ export default function ProvidersPage() {
 
       {showForm && (
         <div className="bg-white rounded-lg shadow p-6 mb-6">
-          <h2 className="text-xl font-semibold mb-4">Add Provider</h2>
+          <h2 className="text-xl font-semibold mb-4">
+            {editingId ? 'Edit Provider' : 'Add Provider'}
+          </h2>
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
               <label className="block text-sm font-medium text-gray-700">Name</label>
@@ -147,11 +206,15 @@ export default function ProvidersPage() {
               <label className="block text-sm font-medium text-gray-700">API Key</label>
               <input
                 type="password"
-                required
+                required={!editingId}
+                placeholder={editingId ? 'Leave blank to keep existing key' : ''}
                 className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md"
                 value={formData.api_key}
                 onChange={(e) => setFormData({ ...formData, api_key: e.target.value })}
               />
+              {editingId && (
+                <p className="mt-1 text-sm text-gray-500">Leave blank to keep the existing API key</p>
+              )}
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700">Base URL (optional)</label>
@@ -166,7 +229,7 @@ export default function ProvidersPage() {
               type="submit"
               className="px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700"
             >
-              Add Provider
+              {editingId ? 'Update' : 'Add Provider'}
             </button>
           </form>
         </div>
@@ -180,6 +243,7 @@ export default function ProvidersPage() {
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Type</th>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Created</th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Actions</th>
             </tr>
           </thead>
           <tbody className="bg-white divide-y divide-gray-200">
@@ -202,6 +266,20 @@ export default function ProvidersPage() {
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                   {new Date(provider.created_at).toLocaleDateString()}
+                </td>
+                <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                  <button
+                    onClick={() => handleEdit(provider)}
+                    className="text-indigo-600 hover:text-indigo-900 mr-4"
+                  >
+                    Edit
+                  </button>
+                  <button
+                    onClick={() => handleDelete(provider.id)}
+                    className="text-red-600 hover:text-red-900"
+                  >
+                    Delete
+                  </button>
                 </td>
               </tr>
             ))}

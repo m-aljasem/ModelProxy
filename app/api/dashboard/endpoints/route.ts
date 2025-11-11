@@ -35,7 +35,7 @@ export async function GET(request: NextRequest) {
     console.log('Fetching endpoints from database...')
     const { data, error } = await supabaseAdmin
       .from('endpoints')
-      .select('*, providers(name, type)')
+      .select('*, providers(id, name, type)')
       .order('created_at', { ascending: false })
 
     if (error) {

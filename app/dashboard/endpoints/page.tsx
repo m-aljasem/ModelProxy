@@ -8,13 +8,14 @@ interface Endpoint {
   path: string
   model: string
   is_active: boolean
-  providers: { name: string; type: string }
+  providers: { id: string; name: string; type: string }
 }
 
 export default function EndpointsPage() {
   const [endpoints, setEndpoints] = useState<Endpoint[]>([])
   const [loading, setLoading] = useState(true)
   const [showForm, setShowForm] = useState(false)
+  const [editingId, setEditingId] = useState<string | null>(null)
   const [formData, setFormData] = useState({
     name: '',
     path: '',
@@ -63,8 +64,13 @@ export default function EndpointsPage() {
     setLoading(true)
     
     try {
-      const response = await fetch('/api/dashboard/endpoints', {
-        method: 'POST',
+      const url = editingId 
+        ? `/api/dashboard/endpoints/${editingId}`
+        : '/api/dashboard/endpoints'
+      const method = editingId ? 'PUT' : 'POST'
+
+      const response = await fetch(url, {
+        method,
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(formData),
       })
@@ -73,18 +79,63 @@ export default function EndpointsPage() {
 
       if (response.ok) {
         setShowForm(false)
+        setEditingId(null)
         setFormData({ name: '', path: '', model: '', provider_id: '' })
         loadEndpoints()
       } else {
-        console.error('Error creating endpoint:', result.error)
+        console.error('Error saving endpoint:', result.error)
         alert(`Error: ${result.error}`)
       }
     } catch (error: any) {
-      console.error('Error creating endpoint:', error)
+      console.error('Error saving endpoint:', error)
       alert(`Error: ${error.message}`)
     } finally {
       setLoading(false)
     }
+  }
+
+  const handleEdit = (endpoint: Endpoint) => {
+    setEditingId(endpoint.id)
+    setFormData({
+      name: endpoint.name,
+      path: endpoint.path,
+      model: endpoint.model,
+      provider_id: (endpoint.providers as any)?.id || '',
+    })
+    setShowForm(true)
+  }
+
+  const handleDelete = async (id: string) => {
+    if (!confirm('Are you sure you want to delete this endpoint?')) {
+      return
+    }
+
+    setLoading(true)
+    try {
+      const response = await fetch(`/api/dashboard/endpoints/${id}`, {
+        method: 'DELETE',
+      })
+
+      const result = await response.json()
+
+      if (response.ok) {
+        loadEndpoints()
+      } else {
+        console.error('Error deleting endpoint:', result.error)
+        alert(`Error: ${result.error}`)
+      }
+    } catch (error: any) {
+      console.error('Error deleting endpoint:', error)
+      alert(`Error: ${error.message}`)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleCancel = () => {
+    setShowForm(false)
+    setEditingId(null)
+    setFormData({ name: '', path: '', model: '', provider_id: '' })
   }
 
   if (loading) {
@@ -96,7 +147,13 @@ export default function EndpointsPage() {
       <div className="flex justify-between items-center mb-6">
         <h1 className="text-3xl font-bold text-gray-900">Endpoints</h1>
         <button
-          onClick={() => setShowForm(!showForm)}
+          onClick={() => {
+            if (showForm) {
+              handleCancel()
+            } else {
+              setShowForm(true)
+            }
+          }}
           className="px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700"
         >
           {showForm ? 'Cancel' : 'Create Endpoint'}
@@ -105,7 +162,9 @@ export default function EndpointsPage() {
 
       {showForm && (
         <div className="bg-white rounded-lg shadow p-6 mb-6">
-          <h2 className="text-xl font-semibold mb-4">Create Endpoint</h2>
+          <h2 className="text-xl font-semibold mb-4">
+            {editingId ? 'Edit Endpoint' : 'Create Endpoint'}
+          </h2>
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
               <label className="block text-sm font-medium text-gray-700">Name</label>
@@ -159,7 +218,7 @@ export default function EndpointsPage() {
               type="submit"
               className="px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700"
             >
-              Create
+              {editingId ? 'Update' : 'Create'}
             </button>
           </form>
         </div>
@@ -174,6 +233,7 @@ export default function EndpointsPage() {
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Model</th>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Provider</th>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Actions</th>
             </tr>
           </thead>
           <tbody className="bg-white divide-y divide-gray-200">
@@ -197,6 +257,20 @@ export default function EndpointsPage() {
                   >
                     {endpoint.is_active ? 'Active' : 'Inactive'}
                   </span>
+                </td>
+                <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                  <button
+                    onClick={() => handleEdit(endpoint)}
+                    className="text-indigo-600 hover:text-indigo-900 mr-4"
+                  >
+                    Edit
+                  </button>
+                  <button
+                    onClick={() => handleDelete(endpoint.id)}
+                    className="text-red-600 hover:text-red-900"
+                  >
+                    Delete
+                  </button>
                 </td>
               </tr>
             ))}
