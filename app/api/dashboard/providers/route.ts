@@ -108,6 +108,22 @@ export async function POST(request: NextRequest) {
     const body = await request.json()
     const { name, type, api_key, base_url } = body
 
+    // Validate required fields
+    if (!name || !type) {
+      return NextResponse.json(
+        { error: 'Missing required fields: name and type are required' },
+        { status: 400 }
+      )
+    }
+
+    // Validate api_key is provided (even if empty, we need to know it was sent)
+    if (api_key === undefined) {
+      return NextResponse.json(
+        { error: 'Missing required field: api_key' },
+        { status: 400 }
+      )
+    }
+
     // Use admin client to bypass RLS
     if (!supabaseAdmin) {
       return NextResponse.json(
@@ -116,12 +132,13 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    const { data, error } = await supabaseAdmin
+    const admin = supabaseAdmin as any
+    const { data, error } = await admin
       .from('providers')
       .insert({
         name,
         type,
-        api_key_encrypted: api_key, // TODO: Encrypt this properly in production
+        api_key_encrypted: api_key || null, // Allow null API key (for providers that don't need one)
         base_url: base_url || null,
         is_active: true,
       } as any)
@@ -129,7 +146,13 @@ export async function POST(request: NextRequest) {
       .single()
 
     if (error) {
-      return NextResponse.json({ error: error.message }, { status: 500 })
+      console.error('Database insert error:', error)
+      return NextResponse.json({ 
+        error: error.message || 'Database error',
+        details: error.details || null,
+        hint: error.hint || null,
+        code: error.code || null
+      }, { status: 500 })
     }
 
     // Log audit if we have a user
@@ -154,7 +177,29 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ data }, { status: 201 })
   } catch (error: any) {
     console.error('POST providers error:', error)
-    return NextResponse.json({ error: error.message }, { status: 500 })
+    console.error('Error stack:', error.stack)
+    console.error('Error name:', error.name)
+    
+    // Check if it's a JSON parsing error
+    if (error instanceof SyntaxError) {
+      return NextResponse.json(
+        { error: 'Invalid JSON in request body' },
+        { status: 400 }
+      )
+    }
+    
+    // Check if it's from OpenAI SDK
+    if (error.message?.includes('API key')) {
+      return NextResponse.json(
+        { error: `Provider configuration error: ${error.message}` },
+        { status: 400 }
+      )
+    }
+    
+    return NextResponse.json({ 
+      error: error.message || 'Internal server error',
+      type: error.constructor?.name || 'UnknownError'
+    }, { status: 500 })
   }
 }
 
