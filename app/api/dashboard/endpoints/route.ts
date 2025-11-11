@@ -91,7 +91,7 @@ export async function POST(request: NextRequest) {
         provider_id,
         config: config || {},
         is_active: true,
-      })
+      } as any)
       .select()
       .single()
 

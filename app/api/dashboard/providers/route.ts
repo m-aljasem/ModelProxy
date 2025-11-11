@@ -117,7 +117,7 @@ export async function POST(request: NextRequest) {
         api_key_encrypted: api_key, // TODO: Encrypt this properly in production
         base_url: base_url || null,
         is_active: true,
-      })
+      } as any)
       .select()
       .single()
 
