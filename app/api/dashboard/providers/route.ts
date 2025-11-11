@@ -116,10 +116,28 @@ export async function POST(request: NextRequest) {
       )
     }
 
+    // Validate provider type matches enum
+    const validTypes = ['openai', 'openrouter', 'custom']
+    const normalizedType = String(type).toLowerCase().trim()
+    if (!validTypes.includes(normalizedType)) {
+      return NextResponse.json(
+        { error: `Invalid provider type "${type}". Must be one of: ${validTypes.join(', ')}` },
+        { status: 400 }
+      )
+    }
+
     // Validate api_key is provided (even if empty, we need to know it was sent)
     if (api_key === undefined) {
       return NextResponse.json(
         { error: 'Missing required field: api_key' },
+        { status: 400 }
+      )
+    }
+
+    // Validate name length (VARCHAR(255))
+    if (name.length > 255) {
+      return NextResponse.json(
+        { error: 'Provider name must be 255 characters or less' },
         { status: 400 }
       )
     }
@@ -133,22 +151,51 @@ export async function POST(request: NextRequest) {
     }
 
     const admin = supabaseAdmin as any
+    
+    // Prepare insert data
+    const insertData: any = {
+      name: String(name).trim(),
+      type: normalizedType, // Use the validated and normalized type
+      api_key_encrypted: api_key ? String(api_key).trim() : null, // Allow null API key (for providers that don't need one)
+      base_url: base_url ? String(base_url).trim() : null,
+      is_active: true,
+    }
+
+    console.log('Attempting to insert provider:', { 
+      name: insertData.name, 
+      type: insertData.type,
+      hasApiKey: !!insertData.api_key_encrypted,
+      hasBaseUrl: !!insertData.base_url
+    })
+
     const { data, error } = await admin
       .from('providers')
-      .insert({
-        name,
-        type,
-        api_key_encrypted: api_key || null, // Allow null API key (for providers that don't need one)
-        base_url: base_url || null,
-        is_active: true,
-      } as any)
+      .insert(insertData)
       .select()
       .single()
 
     if (error) {
       console.error('Database insert error:', error)
+      console.error('Error code:', error.code)
+      console.error('Error details:', error.details)
+      console.error('Error hint:', error.hint)
+      
+      // Provide more specific error messages
+      let errorMessage = error.message || 'Database error'
+      
+      // Handle common database errors
+      if (error.code === '23505') { // Unique violation
+        errorMessage = `A provider with the name "${name}" already exists`
+      } else if (error.code === '23502') { // Not null violation
+        errorMessage = `Missing required field: ${error.column || 'unknown field'}`
+      } else if (error.code === '23514') { // Check violation
+        errorMessage = `Invalid data: ${error.message}`
+      } else if (error.message?.includes('invalid input value for enum')) {
+        errorMessage = `Invalid provider type "${type}". Must be one of: openai, openrouter, custom`
+      }
+      
       return NextResponse.json({ 
-        error: error.message || 'Database error',
+        error: errorMessage,
         details: error.details || null,
         hint: error.hint || null,
         code: error.code || null
@@ -179,11 +226,20 @@ export async function POST(request: NextRequest) {
     console.error('POST providers error:', error)
     console.error('Error stack:', error.stack)
     console.error('Error name:', error.name)
+    console.error('Error message:', error.message)
     
     // Check if it's a JSON parsing error
-    if (error instanceof SyntaxError) {
+    if (error instanceof SyntaxError || error.message?.includes('JSON')) {
       return NextResponse.json(
         { error: 'Invalid JSON in request body' },
+        { status: 400 }
+      )
+    }
+    
+    // Check if it's a request body parsing error
+    if (error.message?.includes('body') || error.message?.includes('parse')) {
+      return NextResponse.json(
+        { error: 'Failed to parse request body. Please ensure all fields are valid.' },
         { status: 400 }
       )
     }
@@ -196,9 +252,11 @@ export async function POST(request: NextRequest) {
       )
     }
     
+    // Return detailed error for debugging
     return NextResponse.json({ 
       error: error.message || 'Internal server error',
-      type: error.constructor?.name || 'UnknownError'
+      type: error.constructor?.name || error.name || 'UnknownError',
+      details: process.env.NODE_ENV === 'development' ? error.stack : undefined
     }, { status: 500 })
   }
 }
