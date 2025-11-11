@@ -80,8 +80,15 @@ export async function POST(request: NextRequest) {
 
     // Get endpoint configuration
     if (!supabaseAdmin) {
+      console.error('Supabase admin client not initialized - check environment variables')
       return NextResponse.json(
-        { error: 'Server configuration error: Supabase admin client not initialized' },
+        { 
+          error: 'Server configuration error: Supabase admin client not initialized. Please check SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY environment variables.',
+          details: {
+            hasUrl: !!process.env.SUPABASE_URL,
+            hasServiceKey: !!process.env.SUPABASE_SERVICE_ROLE_KEY
+          }
+        },
         { status: 500 }
       )
     }
@@ -93,7 +100,32 @@ export async function POST(request: NextRequest) {
       .eq('is_active', true)
       .single()
 
-    if (endpointError || !endpointData) {
+    if (endpointError) {
+      console.error('Database error fetching endpoint:', endpointError)
+      
+      // Check for authentication errors
+      if (endpointError.code === 'PGRST301' || endpointError.message?.includes('JWT') || endpointError.message?.includes('401')) {
+        return NextResponse.json(
+          { 
+            error: 'Authentication failed. Please verify SUPABASE_SERVICE_ROLE_KEY is correct.',
+            details: endpointError.details || null,
+            code: endpointError.code || null
+          },
+          { status: 500 }
+        )
+      }
+      
+      return NextResponse.json(
+        { 
+          error: endpointError.message || 'Failed to fetch endpoint configuration',
+          details: endpointError.details || null,
+          code: endpointError.code || null
+        },
+        { status: 500 }
+      )
+    }
+
+    if (!endpointData) {
       return NextResponse.json(
         { error: 'Endpoint not found or inactive' },
         { status: 404 }

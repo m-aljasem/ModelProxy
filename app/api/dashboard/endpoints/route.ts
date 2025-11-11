@@ -19,24 +19,55 @@ export async function GET(request: NextRequest) {
     }
 
     if (!supabaseAdmin) {
+      console.error('Supabase admin client not initialized - check environment variables')
+      const hasUrl = !!process.env.SUPABASE_URL
+      const hasServiceKey = !!process.env.SUPABASE_SERVICE_ROLE_KEY
+      console.error('Environment check:', { hasUrl, hasServiceKey })
       return NextResponse.json(
-        { error: 'Server configuration error: Supabase admin client not initialized' },
+        { 
+          error: 'Server configuration error: Supabase admin client not initialized. Please check SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY environment variables.',
+          details: { hasUrl, hasServiceKey }
+        },
         { status: 500 }
       )
     }
 
+    console.log('Fetching endpoints from database...')
     const { data, error } = await supabaseAdmin
       .from('endpoints')
       .select('*, providers(name, type)')
       .order('created_at', { ascending: false })
 
     if (error) {
-      return NextResponse.json({ error: error.message }, { status: 500 })
+      console.error('Database error:', error)
+      console.error('Error code:', error.code)
+      console.error('Error details:', error.details)
+      
+      // Check for authentication errors specifically
+      if (error.code === 'PGRST301' || error.message?.includes('JWT') || error.message?.includes('401')) {
+        return NextResponse.json({ 
+          error: 'Authentication failed. Please verify SUPABASE_SERVICE_ROLE_KEY is correct and has not expired.',
+          details: error.details || null,
+          hint: 'Check your Supabase project settings → API → service_role key',
+          code: error.code || null
+        }, { status: 500 })
+      }
+      
+      return NextResponse.json({ 
+        error: error.message || 'Database query failed',
+        details: error.details || null,
+        hint: error.hint || null,
+        code: error.code || null
+      }, { status: 500 })
     }
 
     return NextResponse.json({ data })
   } catch (error: any) {
-    return NextResponse.json({ error: error.message }, { status: 500 })
+    console.error('GET endpoints error:', error)
+    return NextResponse.json({ 
+      error: error.message || 'Internal server error',
+      type: error.constructor?.name || error.name || 'UnknownError'
+    }, { status: 500 })
   }
 }
 
@@ -76,18 +107,32 @@ export async function POST(request: NextRequest) {
 
     // Use admin client to bypass RLS
     if (!supabaseAdmin) {
+      console.error('Supabase admin client not initialized - check environment variables')
+      const hasUrl = !!process.env.SUPABASE_URL
+      const hasServiceKey = !!process.env.SUPABASE_SERVICE_ROLE_KEY
       return NextResponse.json(
-        { error: 'Server configuration error: Supabase admin client not initialized' },
+        { 
+          error: 'Server configuration error: Supabase admin client not initialized. Please check SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY environment variables.',
+          details: { hasUrl, hasServiceKey }
+        },
         { status: 500 }
+      )
+    }
+
+    // Validate required fields
+    if (!name || !path || !model || !provider_id) {
+      return NextResponse.json(
+        { error: 'Missing required fields: name, path, model, and provider_id are required' },
+        { status: 400 }
       )
     }
 
     const { data, error } = await supabaseAdmin
       .from('endpoints')
       .insert({
-        name,
-        path,
-        model,
+        name: String(name).trim(),
+        path: String(path).trim(),
+        model: String(model).trim(),
         provider_id,
         config: config || {},
         is_active: true,
@@ -96,7 +141,27 @@ export async function POST(request: NextRequest) {
       .single()
 
     if (error) {
-      return NextResponse.json({ error: error.message }, { status: 500 })
+      console.error('Database insert error:', error)
+      console.error('Error code:', error.code)
+      
+      // Handle common database errors
+      let errorMessage = error.message || 'Database error'
+      if (error.code === '23505') { // Unique violation
+        errorMessage = `An endpoint with the name "${name}" already exists`
+      } else if (error.code === '23503') { // Foreign key violation
+        errorMessage = `Invalid provider_id: The specified provider does not exist`
+      } else if (error.code === '23502') { // Not null violation
+        errorMessage = `Missing required field: ${error.column || 'unknown field'}`
+      } else if (error.code === 'PGRST301' || error.message?.includes('JWT') || error.message?.includes('401')) {
+        errorMessage = 'Authentication failed. Please verify SUPABASE_SERVICE_ROLE_KEY is correct.'
+      }
+      
+      return NextResponse.json({ 
+        error: errorMessage,
+        details: error.details || null,
+        hint: error.hint || null,
+        code: error.code || null
+      }, { status: 500 })
     }
 
     if (userId && data) {
