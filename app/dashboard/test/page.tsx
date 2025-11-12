@@ -9,6 +9,7 @@ interface Endpoint {
   path: string
   model: string
   is_active: boolean
+  requires_auth?: boolean
   providers: { name: string; type: string }
 }
 
@@ -19,6 +20,8 @@ interface TestResult {
   error?: string
   timestamp: string
   duration?: number
+  curlCommand?: string
+  requestBody?: any
 }
 
 export default function TestPage() {
@@ -26,9 +29,13 @@ export default function TestPage() {
   const [loading, setLoading] = useState(true)
   const [testing, setTesting] = useState(false)
   const [testResults, setTestResults] = useState<TestResult[]>([])
-  const [selectedEndpoint, setSelectedEndpoint] = useState<string>('')
+  const [selectedEndpointPath, setSelectedEndpointPath] = useState<string>('')
   const [testType, setTestType] = useState<'real' | 'mock'>('real')
   const [apiToken, setApiToken] = useState<string>('')
+  
+  // Get the selected endpoint object
+  const selectedEndpoint = endpoints.find(e => e.path === selectedEndpointPath)
+  const requiresAuth = selectedEndpoint ? (selectedEndpoint.requires_auth !== false) : true
 
   useEffect(() => {
     loadEndpoints()
@@ -51,16 +58,42 @@ export default function TestPage() {
     }
   }
 
+  const generateCurlCommand = (url: string, method: string, headers: Record<string, string>, body: any): string => {
+    const baseUrl = typeof window !== 'undefined' ? window.location.origin : ''
+    const fullUrl = `${baseUrl}${url}`
+    let curl = `curl -X ${method} "${fullUrl}"`
+    
+    // Add headers
+    for (const [key, value] of Object.entries(headers)) {
+      // Escape quotes in header values
+      const escapedValue = value.replace(/"/g, '\\"')
+      curl += ` \\\n  -H "${key}: ${escapedValue}"`
+    }
+    
+    // Add body if present
+    if (body) {
+      const bodyStr = JSON.stringify(body)
+      // Escape single quotes for shell compatibility
+      const escapedBody = bodyStr.replace(/'/g, "'\\''")
+      curl += ` \\\n  -d '${escapedBody}'`
+    }
+    
+    return curl
+  }
+
   const testMockAPI = async (): Promise<TestResult> => {
     const startTime = Date.now()
+    const requestBody = {
+      test: true,
+      message: 'Testing mock API',
+    }
+    const headers = { 'Content-Type': 'application/json' }
+    
     try {
       const response = await fetch('/api/test', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          test: true,
-          message: 'Testing mock API',
-        }),
+        headers,
+        body: JSON.stringify(requestBody),
       })
 
       const data = await response.json()
@@ -72,6 +105,8 @@ export default function TestPage() {
         response: data,
         timestamp: new Date().toISOString(),
         duration,
+        curlCommand: generateCurlCommand('/api/test', 'POST', headers, requestBody),
+        requestBody,
       }
     } catch (error: any) {
       return {
@@ -80,6 +115,8 @@ export default function TestPage() {
         error: error.message,
         timestamp: new Date().toISOString(),
         duration: Date.now() - startTime,
+        curlCommand: generateCurlCommand('/api/test', 'POST', headers, requestBody),
+        requestBody,
       }
     }
   }
@@ -87,32 +124,50 @@ export default function TestPage() {
   const testRealAPI = async (endpointPath: string): Promise<TestResult> => {
     const startTime = Date.now()
     try {
-      if (!apiToken) {
+      // Find the endpoint to get its model and auth requirements
+      const endpoint = endpoints.find(e => e.path === endpointPath)
+      const endpointRequiresAuth = endpoint ? (endpoint.requires_auth !== false) : true
+      const endpointModel = endpoint?.model || 'gpt-3.5-turbo'
+      
+      if (endpointRequiresAuth && !apiToken) {
         return {
           endpoint: endpointPath,
           success: false,
-          error: 'API token is required',
+          error: 'API token is required for this endpoint',
           timestamp: new Date().toISOString(),
         }
+      }
+
+      const requestBody: any = {
+        endpoint: endpointPath,
+        messages: [
+          {
+            role: 'user',
+            content: 'Say "the api is working"',
+          },
+        ],
+      }
+      
+      // Only include model if endpoint doesn't have a predefined model (model_id)
+      // For now, we'll include it if the endpoint has a model specified
+      if (endpointModel) {
+        requestBody.model = endpointModel
+      }
+      
+      const headers: Record<string, string> = {
+        'Content-Type': 'application/json',
+      }
+      
+      // Only add Authorization header if auth is required
+      if (endpointRequiresAuth && apiToken) {
+        headers['Authorization'] = `Bearer ${apiToken}`
       }
 
       // Test chat endpoint
       const response = await fetch('/api/chat', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${apiToken}`,
-        },
-        body: JSON.stringify({
-          endpoint: endpointPath,
-          model: 'gpt-3.5-turbo',
-          messages: [
-            {
-              role: 'user',
-              content: 'Say "the api is working"',
-            },
-          ],
-        }),
+        headers,
+        body: JSON.stringify(requestBody),
       })
 
       const data = await response.json()
@@ -125,14 +180,45 @@ export default function TestPage() {
         error: response.ok ? undefined : data.error || 'Unknown error',
         timestamp: new Date().toISOString(),
         duration,
+        curlCommand: generateCurlCommand('/api/chat', 'POST', headers, requestBody),
+        requestBody,
       }
     } catch (error: any) {
+      // Find the endpoint for error case too
+      const endpoint = endpoints.find(e => e.path === endpointPath)
+      const endpointRequiresAuth = endpoint ? (endpoint.requires_auth !== false) : true
+      const endpointModel = endpoint?.model || 'gpt-3.5-turbo'
+      
+      const requestBody: any = {
+        endpoint: endpointPath,
+        messages: [
+          {
+            role: 'user',
+            content: 'Say "the api is working"',
+          },
+        ],
+      }
+      
+      if (endpointModel) {
+        requestBody.model = endpointModel
+      }
+      
+      const headers: Record<string, string> = {
+        'Content-Type': 'application/json',
+      }
+      
+      if (endpointRequiresAuth && apiToken) {
+        headers['Authorization'] = `Bearer ${apiToken}`
+      }
+      
       return {
         endpoint: endpointPath,
         success: false,
         error: error.message,
         timestamp: new Date().toISOString(),
         duration: Date.now() - startTime,
+        curlCommand: generateCurlCommand('/api/chat', 'POST', headers, requestBody),
+        requestBody,
       }
     }
   }
@@ -147,9 +233,9 @@ export default function TestPage() {
       results.push(mockResult)
     } else {
       // Test real APIs
-      if (selectedEndpoint) {
+      if (selectedEndpointPath) {
         // Test specific endpoint
-        const result = await testRealAPI(selectedEndpoint)
+        const result = await testRealAPI(selectedEndpointPath)
         results.push(result)
       } else {
         // Test all active endpoints
@@ -219,28 +305,12 @@ export default function TestPage() {
             <>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
-                  API Token
-                </label>
-                <input
-                  type="password"
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md"
-                  placeholder="Enter your API token"
-                  value={apiToken}
-                  onChange={(e) => setApiToken(e.target.value)}
-                />
-                <p className="mt-1 text-sm text-gray-500">
-                  Required for testing real endpoints
-                </p>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
                   Endpoint (optional - leave empty to test all)
                 </label>
                 <select
                   className="w-full px-3 py-2 border border-gray-300 rounded-md"
-                  value={selectedEndpoint}
-                  onChange={(e) => setSelectedEndpoint(e.target.value)}
+                  value={selectedEndpointPath}
+                  onChange={(e) => setSelectedEndpointPath(e.target.value)}
                 >
                   <option value="">All Active Endpoints</option>
                   {endpoints.map((endpoint) => (
@@ -250,12 +320,33 @@ export default function TestPage() {
                   ))}
                 </select>
               </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  API Token {!requiresAuth && <span className="text-gray-500 font-normal">(Not required for selected endpoint)</span>}
+                </label>
+                <input
+                  type="password"
+                  disabled={!requiresAuth}
+                  className={`w-full px-3 py-2 border border-gray-300 rounded-md ${
+                    !requiresAuth ? 'bg-gray-100 cursor-not-allowed' : ''
+                  }`}
+                  placeholder={requiresAuth ? "Enter your API token" : "Token not required for this endpoint"}
+                  value={apiToken}
+                  onChange={(e) => setApiToken(e.target.value)}
+                />
+                <p className="mt-1 text-sm text-gray-500">
+                  {requiresAuth 
+                    ? 'Required for testing this endpoint'
+                    : 'This endpoint does not require authentication'}
+                </p>
+              </div>
             </>
           )}
 
           <button
             onClick={handleTest}
-            disabled={testing || (testType === 'real' && !apiToken && !selectedEndpoint)}
+            disabled={testing || (testType === 'real' && requiresAuth && !apiToken && !selectedEndpointPath)}
             className="px-6 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 disabled:bg-gray-400 disabled:cursor-not-allowed flex items-center gap-2"
           >
             {testing ? (
@@ -306,6 +397,15 @@ export default function TestPage() {
                     {result.success ? 'Success' : 'Failed'}
                   </span>
                 </div>
+
+                {result.curlCommand && (
+                  <div className="mt-4">
+                    <p className="text-sm font-medium text-gray-700 mb-2">cURL Command:</p>
+                    <pre className="bg-gray-900 text-gray-100 p-3 rounded-md text-xs overflow-auto max-h-64">
+                      <code>{result.curlCommand}</code>
+                    </pre>
+                  </div>
+                )}
 
                 {result.error && (
                   <div className="mt-4 p-3 bg-red-50 border border-red-200 rounded-md">

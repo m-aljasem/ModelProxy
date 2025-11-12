@@ -10,6 +10,8 @@ interface Endpoint {
   model: string
   is_active: boolean
   requires_auth?: boolean
+  token_id?: string
+  model_id?: string
   providers: { id: string; name: string; type: string }
 }
 
@@ -24,15 +26,30 @@ export default function EndpointsPage() {
     model: '',
     provider_id: '',
     requires_auth: true,
+    token_id: '',
+    model_id: '',
+    use_custom_model: false,
   })
   const [providers, setProviders] = useState<any[]>([])
+  const [tokens, setTokens] = useState<any[]>([])
+  const [models, setModels] = useState<any[]>([])
   const [selectedEndpoint, setSelectedEndpoint] = useState<Endpoint | null>(null)
   const [showApiDocs, setShowApiDocs] = useState(false)
 
   useEffect(() => {
     loadEndpoints()
     loadProviders()
+    loadTokens()
   }, [])
+
+  useEffect(() => {
+    // Load models when provider is selected
+    if (formData.provider_id) {
+      loadModels(formData.provider_id)
+    } else {
+      setModels([])
+    }
+  }, [formData.provider_id])
 
   const loadEndpoints = async () => {
     try {
@@ -85,6 +102,54 @@ export default function EndpointsPage() {
     }
   }
 
+  const loadTokens = async () => {
+    try {
+      const response = await fetch('/api/dashboard/tokens')
+      let result: any = {}
+      
+      try {
+        const text = await response.text()
+        if (text) {
+          result = JSON.parse(text)
+        }
+      } catch (parseError) {
+        console.error('Failed to parse JSON response:', parseError)
+      }
+      
+      if (response.ok && result.data) {
+        setTokens(result.data.filter((t: any) => t.is_active).map((t: any) => ({ id: t.id, name: t.name })))
+      }
+    } catch (error) {
+      console.error('Error loading tokens:', error)
+    }
+  }
+
+  const loadModels = async (providerId: string) => {
+    try {
+      const response = await fetch('/api/dashboard/models')
+      let result: any = {}
+      
+      try {
+        const text = await response.text()
+        if (text) {
+          result = JSON.parse(text)
+        }
+      } catch (parseError) {
+        console.error('Failed to parse JSON response:', parseError)
+      }
+      
+      if (response.ok && result.data) {
+        // Filter models by provider and active status
+        const filteredModels = result.data.filter((m: any) => 
+          m.provider_id === providerId && m.is_active
+        )
+        setModels(filteredModels)
+      }
+    } catch (error) {
+      console.error('Error loading models:', error)
+    }
+  }
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setLoading(true)
@@ -121,7 +186,7 @@ export default function EndpointsPage() {
       if (response.ok) {
         setShowForm(false)
         setEditingId(null)
-        setFormData({ name: '', path: '', model: '', provider_id: '', requires_auth: true })
+        setFormData({ name: '', path: '', model: '', provider_id: '', requires_auth: true, token_id: '', model_id: '', use_custom_model: false })
         loadEndpoints()
       } else {
         const errorMessage = result.error || result.message || `Server returned ${response.status}`
@@ -137,14 +202,26 @@ export default function EndpointsPage() {
     }
   }
 
-  const handleEdit = (endpoint: Endpoint) => {
+  const handleEdit = async (endpoint: Endpoint) => {
     setEditingId(endpoint.id)
+    const endpointAny = endpoint as any
+    const providerId = (endpoint.providers as any)?.id || ''
+    const hasModelId = !!endpointAny.model_id
+    
+    // Load models for this provider before setting form data
+    if (providerId) {
+      await loadModels(providerId)
+    }
+    
     setFormData({
       name: endpoint.name,
       path: endpoint.path,
       model: endpoint.model,
-      provider_id: (endpoint.providers as any)?.id || '',
+      provider_id: providerId,
       requires_auth: endpoint.requires_auth !== undefined ? endpoint.requires_auth : true,
+      token_id: endpointAny.token_id || '',
+      model_id: endpointAny.model_id || '',
+      use_custom_model: !hasModelId, // If no model_id, it's a custom model
     })
     setShowForm(true)
   }
@@ -191,7 +268,7 @@ export default function EndpointsPage() {
   const handleCancel = () => {
     setShowForm(false)
     setEditingId(null)
-    setFormData({ name: '', path: '', model: '', provider_id: '', requires_auth: true })
+    setFormData({ name: '', path: '', model: '', provider_id: '', requires_auth: true, token_id: '', model_id: '', use_custom_model: false })
   }
 
   if (loading) {
@@ -244,15 +321,67 @@ export default function EndpointsPage() {
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700">Model</label>
-              <input
-                type="text"
-                required
-                placeholder="gpt-4"
-                className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md"
-                value={formData.model}
-                onChange={(e) => setFormData({ ...formData, model: e.target.value })}
-              />
+              <label className="block text-sm font-medium text-gray-700 mb-2">Model</label>
+              <div className="mb-3">
+                <div className="flex gap-4">
+                  <label className="flex items-center">
+                    <input
+                      type="radio"
+                      name="model_type"
+                      checked={!formData.use_custom_model}
+                      onChange={() => setFormData({ ...formData, use_custom_model: false, model: '' })}
+                      className="mr-2"
+                    />
+                    Predefined Model
+                  </label>
+                  <label className="flex items-center">
+                    <input
+                      type="radio"
+                      name="model_type"
+                      checked={formData.use_custom_model}
+                      onChange={() => setFormData({ ...formData, use_custom_model: true, model_id: '' })}
+                      className="mr-2"
+                    />
+                    Custom Model
+                  </label>
+                </div>
+              </div>
+              {!formData.use_custom_model ? (
+                <select
+                  required={!formData.use_custom_model}
+                  className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md"
+                  value={formData.model_id}
+                  onChange={(e) => {
+                    const selectedModel = models.find(m => m.id === e.target.value)
+                    setFormData({ 
+                      ...formData, 
+                      model_id: e.target.value,
+                      model: selectedModel ? selectedModel.model_identifier : ''
+                    })
+                  }}
+                >
+                  <option value="">Select a model</option>
+                  {models.map((m) => (
+                    <option key={m.id} value={m.id}>
+                      {m.name} ({m.model_identifier})
+                    </option>
+                  ))}
+                </select>
+              ) : (
+                <input
+                  type="text"
+                  required={formData.use_custom_model}
+                  placeholder="gpt-4"
+                  className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md"
+                  value={formData.model}
+                  onChange={(e) => setFormData({ ...formData, model: e.target.value, model_id: '' })}
+                />
+              )}
+              {!formData.use_custom_model && models.length === 0 && formData.provider_id && (
+                <p className="mt-1 text-xs text-gray-500">
+                  No predefined models found for this provider. Switch to custom model or add models in the Models page.
+                </p>
+              )}
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700">Provider</label>
@@ -281,6 +410,24 @@ export default function EndpointsPage() {
               <label htmlFor="requires_auth" className="ml-2 block text-sm text-gray-700">
                 Require API Token Authentication
               </label>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700">Associated Token (Optional)</label>
+              <select
+                className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md"
+                value={formData.token_id}
+                onChange={(e) => setFormData({ ...formData, token_id: e.target.value })}
+              >
+                <option value="">No token selected</option>
+                {tokens.map((t) => (
+                  <option key={t.id} value={t.id}>
+                    {t.name}
+                  </option>
+                ))}
+              </select>
+              <p className="mt-1 text-xs text-gray-500">
+                Select a token to display in API documentation examples
+              </p>
             </div>
             <button
               type="submit"

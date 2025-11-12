@@ -14,11 +14,13 @@ import {
   TestTube,
   Puzzle,
   Wrench,
+  Cpu,
 } from 'lucide-react'
 
 const navigation = [
   { name: 'Overview', href: '/dashboard', icon: LayoutDashboard },
   { name: 'Endpoints', href: '/dashboard/endpoints', icon: Network },
+  { name: 'Models', href: '/dashboard/models', icon: Cpu },
   { name: 'MCP Configs', href: '/dashboard/mcp', icon: Puzzle },
   { name: 'MCP Builder', href: '/dashboard/mcp/builder', icon: Wrench },
   { name: 'Tokens', href: '/dashboard/tokens', icon: Key },

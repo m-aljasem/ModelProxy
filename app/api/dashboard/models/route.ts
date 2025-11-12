@@ -9,20 +9,10 @@ export async function GET(request: NextRequest) {
   try {
     const { client: supabase, response } = createApiRouteClient(request)
     
-    // Try to get session, but don't block if it fails (we use admin client anyway)
-    let session: any = null
-    try {
-      const sessionResult = await supabase.auth.getSession()
-      session = sessionResult.data.session
-    } catch (e) {
-      // Continue without session - admin client will handle it
-    }
-
     if (!supabaseAdmin) {
       console.error('Supabase admin client not initialized - check environment variables')
       const hasUrl = !!process.env.SUPABASE_URL
       const hasServiceKey = !!process.env.SUPABASE_SERVICE_ROLE_KEY
-      console.error('Environment check:', { hasUrl, hasServiceKey })
       return NextResponse.json(
         { 
           error: 'Server configuration error: Supabase admin client not initialized. Please check SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY environment variables.',
@@ -32,27 +22,13 @@ export async function GET(request: NextRequest) {
       )
     }
 
-    console.log('Fetching endpoints from database...')
     const { data, error } = await supabaseAdmin
-      .from('endpoints')
+      .from('models')
       .select('*, providers(id, name, type)')
       .order('created_at', { ascending: false })
 
     if (error) {
       console.error('Database error:', error)
-      console.error('Error code:', error.code)
-      console.error('Error details:', error.details)
-      
-      // Check for authentication errors specifically
-      if (error.code === 'PGRST301' || error.message?.includes('JWT') || error.message?.includes('401')) {
-        return NextResponse.json({ 
-          error: 'Authentication failed. Please verify SUPABASE_SERVICE_ROLE_KEY is correct and has not expired.',
-          details: error.details || null,
-          hint: 'Check your Supabase project settings → API → service_role key',
-          code: error.code || null
-        }, { status: 500 })
-      }
-      
       return NextResponse.json({ 
         error: error.message || 'Database query failed',
         details: error.details || null,
@@ -63,7 +39,7 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json({ data })
   } catch (error: any) {
-    console.error('GET endpoints error:', error)
+    console.error('GET models error:', error)
     return NextResponse.json({ 
       error: error.message || 'Internal server error',
       type: error.constructor?.name || error.name || 'UnknownError'
@@ -83,7 +59,6 @@ export async function POST(request: NextRequest) {
       session = sessionResult.data.session
       userId = session?.user?.id || null
     } catch (e) {
-      // Try getUser as fallback
       try {
         const userResult = await supabase.auth.getUser()
         if (userResult.data.user) {
@@ -95,17 +70,6 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Optional: Check if user has admin role
-    // Uncomment the following if you want to restrict to admins only
-    // const userRole = session.user.user_metadata?.role
-    // if (userRole !== 'admin') {
-    //   return NextResponse.json({ error: 'Admin access required' }, { status: 403 })
-    // }
-
-    const body = await request.json()
-    const { name, path, model, provider_id, config, requires_auth, token_id, model_id } = body
-
-    // Use admin client to bypass RLS
     if (!supabaseAdmin) {
       console.error('Supabase admin client not initialized - check environment variables')
       const hasUrl = !!process.env.SUPABASE_URL
@@ -119,10 +83,13 @@ export async function POST(request: NextRequest) {
       )
     }
 
+    const body = await request.json()
+    const { name, provider_id, model_identifier, description } = body
+
     // Validate required fields
-    if (!name || !path || !model || !provider_id) {
+    if (!name || !provider_id || !model_identifier) {
       return NextResponse.json(
-        { error: 'Missing required fields: name, path, model, and provider_id are required' },
+        { error: 'Missing required fields: name, provider_id, and model_identifier are required' },
         { status: 400 }
       )
     }
@@ -130,26 +97,14 @@ export async function POST(request: NextRequest) {
     // Try insert with select first
     const insertPayload: any = {
       name: String(name).trim(),
-      path: String(path).trim(),
-      model: String(model).trim(),
       provider_id,
-      config: config || {},
-      requires_auth: requires_auth !== undefined ? Boolean(requires_auth) : true,
+      model_identifier: String(model_identifier).trim(),
+      description: description ? String(description).trim() : null,
       is_active: true,
-    }
-    
-    // Add token_id if provided (can be null/empty string)
-    if (token_id !== undefined && token_id !== null && token_id !== '') {
-      insertPayload.token_id = token_id
-    }
-
-    // Add model_id if provided (for linking to predefined model)
-    if (model_id !== undefined && model_id !== null && model_id !== '') {
-      insertPayload.model_id = model_id
     }
 
     const { data: insertData, error: insertError } = await supabaseAdmin
-      .from('endpoints')
+      .from('models')
       .insert(insertPayload)
       .select()
 
@@ -172,7 +127,7 @@ export async function POST(request: NextRequest) {
         
         let errorMessage = insertError.message || 'Database error'
         if (insertError.code === '23505') {
-          errorMessage = `An endpoint with the name "${name}" already exists`
+          errorMessage = `A model with identifier "${model_identifier}" already exists for this provider`
         } else if (insertError.code === '23503') {
           errorMessage = `Invalid provider_id: The specified provider does not exist`
         } else if (insertError.code === '23502') {
@@ -200,24 +155,24 @@ export async function POST(request: NextRequest) {
       data = Array.isArray(insertData) ? insertData[0] : insertData
     } else {
       // Insert succeeded but couldn't return data (409 error), fetch it separately
-      console.log('Fetching inserted endpoint data...')
+      console.log('Fetching inserted model data...')
       const { data: fetchedData, error: fetchError } = await supabaseAdmin
-        .from('endpoints')
+        .from('models')
         .select('*')
-        .eq('name', String(name).trim())
+        .eq('provider_id', provider_id)
+        .eq('model_identifier', String(model_identifier).trim())
         .order('created_at', { ascending: false })
         .limit(1)
         .maybeSingle()
       
       if (fetchError) {
-        console.warn('Could not fetch inserted endpoint:', fetchError)
+        console.warn('Could not fetch inserted model:', fetchError)
         // Still return success since insert worked, just couldn't return the data
         data = {
           name,
-          path,
-          model,
           provider_id,
-          config: config || {},
+          model_identifier,
+          description: description || null,
           is_active: true,
         }
       } else if (fetchedData) {
@@ -226,10 +181,9 @@ export async function POST(request: NextRequest) {
         // Fallback - return basic data
         data = {
           name,
-          path,
-          model,
           provider_id,
-          config: config || {},
+          model_identifier,
+          description: description || null,
           is_active: true,
         }
       }
@@ -239,21 +193,21 @@ export async function POST(request: NextRequest) {
     if (!data) {
       console.error('No data returned from insert operation')
       return NextResponse.json({ 
-        error: 'Failed to create endpoint - data not available',
-        message: 'Endpoint may have been created but data could not be retrieved. Please refresh the page.'
+        error: 'Failed to create model - data not available',
+        message: 'Model may have been created but data could not be retrieved. Please refresh the page.'
       }, { status: 500 })
     }
 
     // Log audit if we have a user and data with an ID
     if (userId && data) {
-      const endpointData = data as any
+      const modelData = data as any
       try {
         await logAudit({
           userId,
-          action: 'endpoint.created',
-          resourceType: 'endpoint',
-          resourceId: endpointData.id || null,
-          details: { name, path, model },
+          action: 'model.created',
+          resourceType: 'model',
+          resourceId: modelData.id || null,
+          details: { name, provider_id, model_identifier },
           ipAddress: request.headers.get('x-forwarded-for')?.split(',')[0] || null,
         })
       } catch (auditError) {
@@ -264,7 +218,7 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({ data }, { headers: response.headers })
   } catch (error: any) {
-    console.error('Unexpected error in POST /api/dashboard/endpoints:', error)
+    console.error('Unexpected error in POST /api/dashboard/models:', error)
     return NextResponse.json({ 
       error: error?.message || 'Internal server error',
       details: process.env.NODE_ENV === 'development' ? String(error) : undefined

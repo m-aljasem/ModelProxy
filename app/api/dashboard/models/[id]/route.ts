@@ -39,49 +39,34 @@ export async function PUT(
     }
 
     const body = await request.json()
-    const { name, path, model, provider_id, config, is_active, requires_auth, token_id, model_id } = body
+    const { name, provider_id, model_identifier, description, is_active } = body
 
     // Validate required fields
-    if (!name || !path || !model || !provider_id) {
+    if (!name || !provider_id || !model_identifier) {
       return NextResponse.json(
-        { error: 'Missing required fields: name, path, model, and provider_id are required' },
+        { error: 'Missing required fields: name, provider_id, and model_identifier are required' },
         { status: 400 }
       )
     }
 
     const updateData: any = {
       name: String(name).trim(),
-      path: String(path).trim(),
-      model: String(model).trim(),
       provider_id,
+      model_identifier: String(model_identifier).trim(),
       updated_at: new Date().toISOString(),
     }
 
-    if (config !== undefined) {
-      updateData.config = config
+    if (description !== undefined) {
+      updateData.description = description ? String(description).trim() : null
     }
 
     if (is_active !== undefined) {
       updateData.is_active = Boolean(is_active)
     }
 
-    if (requires_auth !== undefined) {
-      updateData.requires_auth = Boolean(requires_auth)
-    }
-
-    if (token_id !== undefined) {
-      // Allow setting to null/empty string to remove token association
-      updateData.token_id = token_id === '' || token_id === null ? null : token_id
-    }
-
-    if (model_id !== undefined) {
-      // Allow setting to null/empty string to remove model association
-      updateData.model_id = model_id === '' || model_id === null ? null : model_id
-    }
-
     const admin = supabaseAdmin as any
     const { data, error } = await admin
-      .from('endpoints')
+      .from('models')
       .update(updateData)
       .eq('id', params.id)
       .select()
@@ -90,7 +75,7 @@ export async function PUT(
     if (error) {
       let errorMessage = error.message || 'Database error'
       if (error.code === '23505') {
-        errorMessage = `An endpoint with the name "${name}" already exists`
+        errorMessage = `A model with identifier "${model_identifier}" already exists for this provider`
       } else if (error.code === '23503') {
         errorMessage = `Invalid provider_id: The specified provider does not exist`
       }
@@ -103,17 +88,17 @@ export async function PUT(
     }
 
     if (!data) {
-      return NextResponse.json({ error: 'Endpoint not found' }, { status: 404 })
+      return NextResponse.json({ error: 'Model not found' }, { status: 404 })
     }
 
     if (userId) {
       try {
         await logAudit({
           userId,
-          action: 'endpoint.updated',
-          resourceType: 'endpoint',
+          action: 'model.updated',
+          resourceType: 'model',
           resourceId: params.id,
-          details: { name, path, model },
+          details: { name, provider_id, model_identifier },
           ipAddress: request.headers.get('x-forwarded-for')?.split(',')[0] || null,
         })
       } catch (auditError) {
@@ -161,35 +146,35 @@ export async function DELETE(
       )
     }
 
-    // First, get the endpoint to log its details
+    // First, get the model to log its details
     const admin = supabaseAdmin as any
-    const { data: endpointData } = await admin
-      .from('endpoints')
+    const { data: modelData } = await admin
+      .from('models')
       .select('name')
       .eq('id', params.id)
       .single()
 
     const { error } = await admin
-      .from('endpoints')
+      .from('models')
       .delete()
       .eq('id', params.id)
 
     if (error) {
       return NextResponse.json({ 
-        error: error.message || 'Failed to delete endpoint',
+        error: error.message || 'Failed to delete model',
         details: error.details || null
       }, { status: 500 })
     }
 
-    if (userId && endpointData) {
-      const endpoint = endpointData as any
+    if (userId && modelData) {
+      const model = modelData as any
       try {
         await logAudit({
           userId,
-          action: 'endpoint.deleted',
-          resourceType: 'endpoint',
+          action: 'model.deleted',
+          resourceType: 'model',
           resourceId: params.id,
-          details: { name: endpoint.name },
+          details: { name: model.name },
           ipAddress: request.headers.get('x-forwarded-for')?.split(',')[0] || null,
         })
       } catch (auditError) {

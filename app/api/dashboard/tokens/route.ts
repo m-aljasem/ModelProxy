@@ -2,6 +2,31 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createApiRouteClient } from '@/lib/supabase/api-route'
 import { createToken } from '@/lib/auth/token'
 import { logAudit } from '@/lib/utils/logger'
+import { supabaseAdmin } from '@/lib/supabase/admin'
+
+export async function GET(request: NextRequest) {
+  try {
+    if (!supabaseAdmin) {
+      return NextResponse.json(
+        { error: 'Server configuration error: Supabase admin client not initialized' },
+        { status: 500 }
+      )
+    }
+
+    const { data, error } = await supabaseAdmin
+      .from('api_tokens')
+      .select('id, name, scopes, rate_limit_per_minute, monthly_quota, is_active, created_at, last_used_at')
+      .order('created_at', { ascending: false })
+
+    if (error) {
+      return NextResponse.json({ error: error.message }, { status: 500 })
+    }
+
+    return NextResponse.json({ data })
+  } catch (error: any) {
+    return NextResponse.json({ error: error.message }, { status: 500 })
+  }
+}
 
 export async function POST(request: NextRequest) {
   try {

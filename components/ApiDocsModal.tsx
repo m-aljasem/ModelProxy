@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { X, Copy, Check } from 'lucide-react'
 
 interface Endpoint {
@@ -9,6 +9,9 @@ interface Endpoint {
   path: string
   model: string
   is_active: boolean
+  requires_auth?: boolean
+  token_id?: string
+  model_id?: string
   providers: { id: string; name: string; type: string }
 }
 
@@ -23,6 +26,26 @@ type CodeLanguage = 'curl' | 'python' | 'typescript' | 'php'
 export default function ApiDocsModal({ endpoint, isOpen, onClose }: ApiDocsModalProps) {
   const [activeTab, setActiveTab] = useState<CodeLanguage>('curl')
   const [copied, setCopied] = useState<string | null>(null)
+  const [tokenName, setTokenName] = useState<string | null>(null)
+
+  useEffect(() => {
+    if (isOpen && endpoint.token_id) {
+      // Fetch token name
+      fetch('/api/dashboard/tokens')
+        .then(res => res.json())
+        .then(data => {
+          if (data.data) {
+            const token = data.data.find((t: any) => t.id === endpoint.token_id)
+            if (token) {
+              setTokenName(token.name)
+            }
+          }
+        })
+        .catch(err => console.error('Failed to fetch token:', err))
+    } else {
+      setTokenName(null)
+    }
+  }, [isOpen, endpoint.token_id])
 
   if (!isOpen) return null
 
@@ -31,7 +54,13 @@ export default function ApiDocsModal({ endpoint, isOpen, onClose }: ApiDocsModal
     : process.env.NEXT_PUBLIC_APP_URL || 'https://your-domain.com'
   
   const apiUrl = `${baseUrl}${endpoint.path}`
-  const tokenPlaceholder = 'YOUR_API_TOKEN'
+  // Use token name if available, otherwise use placeholder
+  const tokenPlaceholder = tokenName ? `YOUR_${tokenName.toUpperCase().replace(/\s+/g, '_')}_TOKEN` : 'YOUR_API_TOKEN'
+  
+  // Check if authentication is required
+  const requiresAuth = endpoint.requires_auth !== false // Default to true if not set
+  // Check if model is predefined (has model_id)
+  const hasPredefinedModel = !!endpoint.model_id
 
   const generateCodeExample = (language: CodeLanguage): string => {
     const exampleMessages = [
@@ -40,32 +69,48 @@ export default function ApiDocsModal({ endpoint, isOpen, onClose }: ApiDocsModal
 
     switch (language) {
       case 'curl':
+        const curlHeaders = requiresAuth 
+          ? `  -H "Content-Type: application/json" \\
+  -H "Authorization: Bearer ${tokenPlaceholder}"`
+          : `  -H "Content-Type: application/json"`
+        
+        const curlBody: any = {
+          endpoint: endpoint.path,
+          messages: [
+            {
+              role: "user",
+              content: "Hello, how are you?"
+            }
+          ],
+          stream: false
+        }
+        
+        // Only include model in request body if it's not a predefined model
+        if (!hasPredefinedModel) {
+          curlBody.model = endpoint.model
+        }
+        
         return `curl -X POST ${apiUrl} \\
-  -H "Content-Type: application/json" \\
-  -H "Authorization: Bearer ${tokenPlaceholder}" \\
-  -d '{
-    "endpoint": "${endpoint.path}",
-    "model": "${endpoint.model}",
-    "messages": [
-      {
-        "role": "user",
-        "content": "Hello, how are you?"
-      }
-    ],
-    "stream": false
-  }'`
+${curlHeaders} \\
+  -d '${JSON.stringify(curlBody)}'`
       
       case 'python':
-        return `import requests
-
-url = "${apiUrl}"
-headers = {
-    "Content-Type": "application/json",
-    "Authorization": f"Bearer {tokenPlaceholder}"
-}
-
-payload = {
-    "endpoint": "${endpoint.path}",
+        let pythonHeaders = '    "Content-Type": "application/json"'
+        if (requiresAuth) {
+          pythonHeaders += `,\n    "Authorization": f"Bearer ${tokenPlaceholder}"`
+        }
+        
+        let pythonPayload = `    "endpoint": "${endpoint.path}",
+    "messages": [
+        {
+            "role": "user",
+            "content": "Hello, how are you?"
+        }
+    ],
+    "stream": False`
+        
+        if (!hasPredefinedModel) {
+          pythonPayload = `    "endpoint": "${endpoint.path}",
     "model": "${endpoint.model}",
     "messages": [
         {
@@ -73,29 +118,57 @@ payload = {
             "content": "Hello, how are you?"
         }
     ],
-    "stream": False
+    "stream": False`
+        }
+        
+        return `import requests
+
+url = "${apiUrl}"
+headers = {
+${pythonHeaders}
+}
+
+payload = {
+${pythonPayload}
 }
 
 response = requests.post(url, json=payload, headers=headers)
 print(response.json())`
       
       case 'typescript':
+        const tsHeaders: any = {
+          "Content-Type": "application/json"
+        }
+        if (requiresAuth) {
+          tsHeaders["Authorization"] = `\`Bearer ${tokenPlaceholder}\``
+        }
+        
+        const tsBody: any = {
+          endpoint: endpoint.path,
+          messages: [
+            {
+              role: "user",
+              content: "Hello, how are you?"
+            }
+          ],
+          stream: false
+        }
+        
+        if (!hasPredefinedModel) {
+          tsBody.model = endpoint.model
+        }
+        
+        const tsHeadersStr = Object.entries(tsHeaders)
+          .map(([k, v]) => `    "${k}": ${v}`)
+          .join(',\n')
+        
         return `const response = await fetch("${apiUrl}", {
   method: "POST",
   headers: {
-    "Content-Type": "application/json",
-    "Authorization": \`Bearer ${tokenPlaceholder}\`
+${tsHeadersStr}
   },
   body: JSON.stringify({
-    endpoint: "${endpoint.path}",
-    model: "${endpoint.model}",
-    messages: [
-      {
-        role: "user",
-        content: "Hello, how are you?"
-      }
-    ],
-    stream: false
+${Object.entries(tsBody).map(([k, v]) => `    ${k}: ${JSON.stringify(v)}`).join(',\n')}
   })
 });
 
@@ -103,13 +176,22 @@ const data = await response.json();
 console.log(data);`
       
       case 'php':
-        return `<?php
-
-$url = "${apiUrl}";
-$token = "${tokenPlaceholder}";
-
-$data = [
-    "endpoint" => "${endpoint.path}",
+        const phpHeaders = requiresAuth
+          ? `    "Content-Type: application/json",
+    "Authorization: Bearer " . $token`
+          : `    "Content-Type: application/json"`
+        
+        let phpData = `    "endpoint" => "${endpoint.path}",
+    "messages" => [
+        [
+            "role" => "user",
+            "content" => "Hello, how are you?"
+        ]
+    ],
+    "stream" => false`
+        
+        if (!hasPredefinedModel) {
+          phpData = `    "endpoint" => "${endpoint.path}",
     "model" => "${endpoint.model}",
     "messages" => [
         [
@@ -117,7 +199,16 @@ $data = [
             "content" => "Hello, how are you?"
         ]
     ],
-    "stream" => false
+    "stream" => false`
+        }
+        
+        return `<?php
+
+$url = "${apiUrl}";
+${requiresAuth ? `$token = "${tokenPlaceholder}";
+
+` : ''}$data = [
+${phpData}
 ];
 
 $ch = curl_init($url);
@@ -125,8 +216,7 @@ curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
 curl_setopt($ch, CURLOPT_POST, true);
 curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($data));
 curl_setopt($ch, CURLOPT_HTTPHEADER, [
-    "Content-Type: application/json",
-    "Authorization: Bearer " . $token
+${phpHeaders}
 ]);
 
 $response = curl_exec($ch);
@@ -221,25 +311,31 @@ echo $response;
               <ul className="text-sm text-blue-800 space-y-1">
                 <li><strong>URL:</strong> <code className="bg-blue-100 px-1 rounded">{apiUrl}</code></li>
                 <li><strong>Method:</strong> POST</li>
-                <li><strong>Model:</strong> {endpoint.model}</li>
+                <li><strong>Model:</strong> {endpoint.model} {hasPredefinedModel && <span className="text-xs text-blue-600">(predefined)</span>}</li>
                 <li><strong>Provider:</strong> {endpoint.providers?.name || 'N/A'}</li>
               </ul>
             </div>
 
-            <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
-              <h3 className="font-semibold text-yellow-900 mb-2">Authentication</h3>
-              <p className="text-sm text-yellow-800">
-                All requests require a Bearer token in the Authorization header. 
-                Create an API token from the Tokens section in the dashboard.
-              </p>
-            </div>
+            {requiresAuth && (
+              <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+                <h3 className="font-semibold text-yellow-900 mb-2">Authentication</h3>
+                <p className="text-sm text-yellow-800">
+                  All requests require a Bearer token in the Authorization header. 
+                  {tokenName ? (
+                    <> This endpoint is associated with the <strong>{tokenName}</strong> token. Use that token for authentication.</>
+                  ) : (
+                    <> Create an API token from the Tokens section in the dashboard.</>
+                  )}
+                </p>
+              </div>
+            )}
 
             <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
               <h3 className="font-semibold text-gray-900 mb-2">Request Body</h3>
               <pre className="text-xs bg-white p-3 rounded border overflow-x-auto">
                 <code>{JSON.stringify({
                   endpoint: endpoint.path,
-                  model: endpoint.model,
+                  ...(!hasPredefinedModel && { model: endpoint.model }),
                   messages: [
                     { role: 'user', content: 'Hello, how are you?' }
                   ],
