@@ -103,7 +103,7 @@ export async function POST(request: NextRequest) {
     // }
 
     const body = await request.json()
-    const { name, path, model, provider_id, config } = body
+    const { name, path, model, provider_id, config, requires_auth } = body
 
     // Use admin client to bypass RLS
     if (!supabaseAdmin) {
@@ -136,6 +136,7 @@ export async function POST(request: NextRequest) {
         model: String(model).trim(),
         provider_id,
         config: config || {},
+        requires_auth: requires_auth !== undefined ? Boolean(requires_auth) : true,
         is_active: true,
       } as any)
       .select()

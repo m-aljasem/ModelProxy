@@ -37,6 +37,7 @@ CREATE TABLE endpoints (
   model VARCHAR(255) NOT NULL,
   path VARCHAR(255) NOT NULL, -- e.g., '/api/chat', '/api/embeddings'
   config JSONB DEFAULT '{}', -- Provider-specific config (temperature, max_tokens, etc.)
+  requires_auth BOOLEAN DEFAULT true, -- Whether this endpoint requires API token authentication
   is_active BOOLEAN DEFAULT true,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()

@@ -9,6 +9,7 @@ interface Endpoint {
   path: string
   model: string
   is_active: boolean
+  requires_auth?: boolean
   providers: { id: string; name: string; type: string }
 }
 
@@ -22,6 +23,7 @@ export default function EndpointsPage() {
     path: '',
     model: '',
     provider_id: '',
+    requires_auth: true,
   })
   const [providers, setProviders] = useState<any[]>([])
   const [selectedEndpoint, setSelectedEndpoint] = useState<Endpoint | null>(null)
@@ -119,7 +121,7 @@ export default function EndpointsPage() {
       if (response.ok) {
         setShowForm(false)
         setEditingId(null)
-        setFormData({ name: '', path: '', model: '', provider_id: '' })
+        setFormData({ name: '', path: '', model: '', provider_id: '', requires_auth: true })
         loadEndpoints()
       } else {
         const errorMessage = result.error || result.message || `Server returned ${response.status}`
@@ -142,6 +144,7 @@ export default function EndpointsPage() {
       path: endpoint.path,
       model: endpoint.model,
       provider_id: (endpoint.providers as any)?.id || '',
+      requires_auth: endpoint.requires_auth !== undefined ? endpoint.requires_auth : true,
     })
     setShowForm(true)
   }
@@ -266,6 +269,18 @@ export default function EndpointsPage() {
                   </option>
                 ))}
               </select>
+            </div>
+            <div className="flex items-center">
+              <input
+                type="checkbox"
+                id="requires_auth"
+                className="h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-gray-300 rounded"
+                checked={formData.requires_auth}
+                onChange={(e) => setFormData({ ...formData, requires_auth: e.target.checked })}
+              />
+              <label htmlFor="requires_auth" className="ml-2 block text-sm text-gray-700">
+                Require API Token Authentication
+              </label>
             </div>
             <button
               type="submit"

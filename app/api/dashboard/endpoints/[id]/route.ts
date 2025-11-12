@@ -39,7 +39,7 @@ export async function PUT(
     }
 
     const body = await request.json()
-    const { name, path, model, provider_id, config, is_active } = body
+    const { name, path, model, provider_id, config, is_active, requires_auth } = body
 
     // Validate required fields
     if (!name || !path || !model || !provider_id) {
@@ -63,6 +63,10 @@ export async function PUT(
 
     if (is_active !== undefined) {
       updateData.is_active = Boolean(is_active)
+    }
+
+    if (requires_auth !== undefined) {
+      updateData.requires_auth = Boolean(requires_auth)
     }
 
     const admin = supabaseAdmin as any
