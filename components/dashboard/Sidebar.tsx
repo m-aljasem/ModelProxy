@@ -15,10 +15,12 @@ import {
   Puzzle,
   Wrench,
   Cpu,
+  MessageSquare,
 } from 'lucide-react'
 
 const navigation = [
   { name: 'Overview', href: '/dashboard', icon: LayoutDashboard },
+  { name: 'Chat', href: '/dashboard/chat', icon: MessageSquare },
   { name: 'Endpoints', href: '/dashboard/endpoints', icon: Network },
   { name: 'Models', href: '/dashboard/models', icon: Cpu },
   { name: 'MCP Configs', href: '/dashboard/mcp', icon: Puzzle },
