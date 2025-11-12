@@ -479,7 +479,9 @@ export default function EndpointsPage() {
                   <button
                     onClick={async (e) => {
                       try {
-                        await navigator.clipboard.writeText(endpoint.path)
+                        // Get the full URL by combining origin with endpoint path
+                        const fullUrl = `${window.location.origin}${endpoint.path}`
+                        await navigator.clipboard.writeText(fullUrl)
                         // Show a temporary feedback
                         const button = e.currentTarget as HTMLButtonElement
                         const originalText = button.textContent
@@ -495,7 +497,7 @@ export default function EndpointsPage() {
                       }
                     }}
                     className="hover:text-indigo-600 hover:underline cursor-pointer transition-colors"
-                    title="Click to copy path"
+                    title="Click to copy full URL"
                   >
                     {endpoint.path}
                   </button>
