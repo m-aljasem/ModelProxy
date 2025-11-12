@@ -53,9 +53,12 @@ async function handleRequest(request: NextRequest, params: { path: string[] }, m
       )
     }
 
+    // Type assertion for endpoints
+    const typedEndpoints = endpoints as any[]
+
     // Find matching endpoint - check if the path starts with an endpoint path
     // Sort endpoints by path length (longest first) to match more specific paths first
-    const sortedEndpoints = [...endpoints].sort((a, b) => b.path.length - a.path.length)
+    const sortedEndpoints = [...typedEndpoints].sort((a, b) => b.path.length - a.path.length)
     
     let matchedEndpoint: any = null
     let remainingPath = ''
