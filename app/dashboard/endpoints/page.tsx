@@ -10,6 +10,7 @@ interface Endpoint {
   model: string
   is_active: boolean
   requires_auth?: boolean
+  openai_compatible?: boolean
   token_id?: string
   model_id?: string
   providers: { id: string; name: string; type: string }
@@ -26,6 +27,7 @@ export default function EndpointsPage() {
     model: '',
     provider_id: '',
     requires_auth: true,
+    openai_compatible: false,
     token_id: '',
     model_id: '',
     use_custom_model: false,
@@ -186,7 +188,7 @@ export default function EndpointsPage() {
       if (response.ok) {
         setShowForm(false)
         setEditingId(null)
-        setFormData({ name: '', path: '', model: '', provider_id: '', requires_auth: true, token_id: '', model_id: '', use_custom_model: false })
+        setFormData({ name: '', path: '', model: '', provider_id: '', requires_auth: true, openai_compatible: false, token_id: '', model_id: '', use_custom_model: false })
         loadEndpoints()
       } else {
         const errorMessage = result.error || result.message || `Server returned ${response.status}`
@@ -219,6 +221,7 @@ export default function EndpointsPage() {
       model: endpoint.model,
       provider_id: providerId,
       requires_auth: endpoint.requires_auth !== undefined ? endpoint.requires_auth : true,
+      openai_compatible: endpoint.openai_compatible !== undefined ? endpoint.openai_compatible : false,
       token_id: endpointAny.token_id || '',
       model_id: endpointAny.model_id || '',
       use_custom_model: !hasModelId, // If no model_id, it's a custom model
@@ -268,7 +271,7 @@ export default function EndpointsPage() {
   const handleCancel = () => {
     setShowForm(false)
     setEditingId(null)
-    setFormData({ name: '', path: '', model: '', provider_id: '', requires_auth: true, token_id: '', model_id: '', use_custom_model: false })
+    setFormData({ name: '', path: '', model: '', provider_id: '', requires_auth: true, openai_compatible: false, token_id: '', model_id: '', use_custom_model: false })
   }
 
   if (loading) {
@@ -410,6 +413,21 @@ export default function EndpointsPage() {
               <label htmlFor="requires_auth" className="ml-2 block text-sm text-gray-700">
                 Require API Token Authentication
               </label>
+            </div>
+            <div className="flex items-center">
+              <input
+                type="checkbox"
+                id="openai_compatible"
+                className="h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-gray-300 rounded"
+                checked={formData.openai_compatible}
+                onChange={(e) => setFormData({ ...formData, openai_compatible: e.target.checked })}
+              />
+              <label htmlFor="openai_compatible" className="ml-2 block text-sm text-gray-700">
+                OpenAI Compatibility Layer
+              </label>
+              <p className="ml-2 text-xs text-gray-500">
+                Allows OpenAI-style paths (e.g., /v1/chat/completions) after the endpoint path
+              </p>
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700">Associated Token (Optional)</label>

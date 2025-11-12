@@ -39,7 +39,7 @@ export async function PUT(
     }
 
     const body = await request.json()
-    const { name, path, model, provider_id, config, is_active, requires_auth, token_id, model_id } = body
+    const { name, path, model, provider_id, config, is_active, requires_auth, openai_compatible, token_id, model_id } = body
 
     // Validate required fields
     if (!name || !path || !model || !provider_id) {
@@ -67,6 +67,10 @@ export async function PUT(
 
     if (requires_auth !== undefined) {
       updateData.requires_auth = Boolean(requires_auth)
+    }
+
+    if (openai_compatible !== undefined) {
+      updateData.openai_compatible = Boolean(openai_compatible)
     }
 
     if (token_id !== undefined) {
