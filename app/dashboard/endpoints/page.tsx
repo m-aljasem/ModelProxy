@@ -191,7 +191,7 @@ export default function EndpointsPage() {
   const handleCancel = () => {
     setShowForm(false)
     setEditingId(null)
-    setFormData({ name: '', path: '', model: '', provider_id: '' })
+    setFormData({ name: '', path: '', model: '', provider_id: '', requires_auth: true })
   }
 
   if (loading) {

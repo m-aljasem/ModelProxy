@@ -174,21 +174,79 @@ export default function TokensPage() {
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700">Scopes</label>
-              <select
-                multiple
-                className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md"
-                value={formData.scopes}
-                onChange={(e) => {
-                  const selected = Array.from(e.target.selectedOptions, (opt) => opt.value)
-                  setFormData({ ...formData, scopes: selected })
-                }}
-              >
-                <option value="all">All</option>
-                <option value="chat">Chat</option>
-                <option value="embeddings">Embeddings</option>
-                <option value="models">Models</option>
-              </select>
+              <label className="block text-sm font-medium text-gray-700 mb-3">Scopes</label>
+              <div className="flex flex-wrap gap-2">
+                {[
+                  { value: 'all', label: 'All', color: 'indigo' },
+                  { value: 'chat', label: 'Chat', color: 'blue' },
+                  { value: 'embeddings', label: 'Embeddings', color: 'purple' },
+                  { value: 'models', label: 'Models', color: 'green' },
+                ].map((scope) => {
+                  const isSelected = formData.scopes.includes(scope.value)
+                  const colorClasses = {
+                    indigo: isSelected
+                      ? 'bg-indigo-600 text-white border-indigo-600 shadow-md'
+                      : 'bg-white text-indigo-600 border-indigo-300 hover:bg-indigo-50',
+                    blue: isSelected
+                      ? 'bg-blue-600 text-white border-blue-600 shadow-md'
+                      : 'bg-white text-blue-600 border-blue-300 hover:bg-blue-50',
+                    purple: isSelected
+                      ? 'bg-purple-600 text-white border-purple-600 shadow-md'
+                      : 'bg-white text-purple-600 border-purple-300 hover:bg-purple-50',
+                    green: isSelected
+                      ? 'bg-green-600 text-white border-green-600 shadow-md'
+                      : 'bg-white text-green-600 border-green-300 hover:bg-green-50',
+                  }
+                  
+                  return (
+                    <button
+                      key={scope.value}
+                      type="button"
+                      onClick={() => {
+                        let newScopes: string[]
+                        if (scope.value === 'all') {
+                          // If "all" is clicked, toggle it
+                          newScopes = isSelected ? ['chat'] : ['all'] // Default to 'chat' if deselecting 'all' to ensure at least one scope
+                        } else {
+                          // If individual scope is clicked
+                          if (isSelected) {
+                            // Remove this scope
+                            newScopes = formData.scopes.filter((s) => s !== scope.value)
+                            // If no scopes left, select "all" to ensure at least one scope
+                            if (newScopes.length === 0) {
+                              newScopes = ['all']
+                            }
+                          } else {
+                            // Add this scope, but remove "all" if it's selected
+                            newScopes = formData.scopes.filter((s) => s !== 'all')
+                            newScopes.push(scope.value)
+                            // If all 3 individual scopes are selected, automatically select "all" instead
+                            if (newScopes.length === 3 && !newScopes.includes('all')) {
+                              newScopes = ['all']
+                            }
+                          }
+                        }
+                        setFormData({ ...formData, scopes: newScopes })
+                      }}
+                      className={`px-4 py-2 rounded-lg font-medium text-sm border-2 transition-all duration-200 transform hover:scale-105 active:scale-95 ${
+                        colorClasses[scope.color as keyof typeof colorClasses]
+                      }`}
+                    >
+                      {scope.label}
+                      {isSelected && (
+                        <span className="ml-2">✓</span>
+                      )}
+                    </button>
+                  )
+                })}
+              </div>
+              <p className="mt-2 text-xs text-gray-500">
+                {formData.scopes.length === 0
+                  ? 'Select at least one scope'
+                  : formData.scopes.includes('all')
+                  ? 'All permissions granted'
+                  : `${formData.scopes.length} scope${formData.scopes.length > 1 ? 's' : ''} selected`}
+              </p>
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700">Rate Limit (per minute)</label>

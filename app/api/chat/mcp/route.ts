@@ -23,59 +23,7 @@ export async function POST(request: NextRequest) {
   let endpointConfig: any = null
 
   try {
-    // Authenticate token
-    const authResult = await authenticateToken(request)
-    tokenData = authResult.tokenData
-    if (!tokenData || authResult.error) {
-      return NextResponse.json(
-        { error: authResult.error || 'Unauthorized' },
-        { status: 401 }
-      )
-    }
-
-    // Check scope
-    if (!(await checkScope(tokenData, 'chat'))) {
-      return NextResponse.json(
-        { error: 'Token does not have chat scope' },
-        { status: 403 }
-      )
-    }
-
-    // Check rate limit
-    const rateLimit = await checkRateLimit(tokenData.id, tokenData.rateLimitPerMinute)
-    if (!rateLimit.allowed) {
-      await logUsage({
-        tokenId: tokenData.id,
-        endpointId: null,
-        providerId: null,
-        status: 'rate_limited',
-        statusCode: 429,
-        latencyMs: Date.now() - startTime,
-        requestSize: 0,
-        responseSize: 0,
-        model: null,
-        costEstimate: null,
-        errorMessage: 'Rate limit exceeded',
-        correlationId,
-        ipAddress: clientIp,
-        userAgent,
-      })
-      return NextResponse.json(
-        { error: 'Rate limit exceeded', remaining: rateLimit.remaining },
-        { status: 429, headers: { 'X-RateLimit-Remaining': rateLimit.remaining.toString() } }
-      )
-    }
-
-    // Check quota
-    const quota = await checkQuota(tokenData.id, tokenData.monthlyQuota)
-    if (!quota.allowed) {
-      return NextResponse.json(
-        { error: 'Monthly quota exceeded', remaining: quota.remaining },
-        { status: 429 }
-      )
-    }
-
-    // Parse request body
+    // Parse request body first to get endpoint
     body = await request.json()
     const { endpoint, mcp_config_id, stream, ...chatRequest } = body
 
@@ -109,6 +57,71 @@ export async function POST(request: NextRequest) {
     }
 
     endpointConfig = endpointData as any
+
+    if (!endpointConfig.providers) {
+      return NextResponse.json(
+        { error: 'Provider configuration not found' },
+        { status: 500 }
+      )
+    }
+
+    // Check if authentication is required for this endpoint
+    const requiresAuth = endpointConfig.requires_auth !== false // Default to true if not set
+    let rateLimit: { allowed: boolean; remaining: number } | null = null
+
+    // Authenticate token if required
+    if (requiresAuth) {
+      const authResult = await authenticateToken(request)
+      tokenData = authResult.tokenData
+      if (!tokenData || authResult.error) {
+        return NextResponse.json(
+          { error: authResult.error || 'Unauthorized' },
+          { status: 401 }
+        )
+      }
+
+      // Check scope
+      if (!(await checkScope(tokenData, 'chat'))) {
+        return NextResponse.json(
+          { error: 'Token does not have chat scope' },
+          { status: 403 }
+        )
+      }
+
+      // Check rate limit
+      rateLimit = await checkRateLimit(tokenData.id, tokenData.rateLimitPerMinute)
+      if (!rateLimit.allowed) {
+        await logUsage({
+          tokenId: tokenData.id,
+          endpointId: null,
+          providerId: null,
+          status: 'rate_limited',
+          statusCode: 429,
+          latencyMs: Date.now() - startTime,
+          requestSize: 0,
+          responseSize: 0,
+          model: null,
+          costEstimate: null,
+          errorMessage: 'Rate limit exceeded',
+          correlationId,
+          ipAddress: clientIp,
+          userAgent,
+        })
+        return NextResponse.json(
+          { error: 'Rate limit exceeded', remaining: rateLimit.remaining },
+          { status: 429, headers: { 'X-RateLimit-Remaining': rateLimit.remaining.toString() } }
+        )
+      }
+
+      // Check quota
+      const quota = await checkQuota(tokenData.id, tokenData.monthlyQuota)
+      if (!quota.allowed) {
+        return NextResponse.json(
+          { error: 'Monthly quota exceeded', remaining: quota.remaining },
+          { status: 429 }
+        )
+      }
+    }
 
     // Get MCP config if specified
     let mcpServer: MCPServer | null = null
@@ -155,10 +168,12 @@ export async function POST(request: NextRequest) {
     }
 
     // Prepare request with MCP if available
+    // Use endpoint's model if not provided in request, otherwise use request model
     const finalRequest = {
-      model: endpointConfig.model,
       ...endpointConfig.config,
       ...chatRequest,
+      // Ensure model is set (use request model if provided, otherwise use endpoint's model)
+      model: chatRequest.model || endpointConfig.model,
     }
 
     let messages = chatRequest.messages || []
@@ -196,7 +211,7 @@ export async function POST(request: NextRequest) {
 
             const latencyMs = Date.now() - startTime
             await logUsage({
-              tokenId: tokenData.id,
+              tokenId: tokenData?.id || null,
               endpointId: endpointConfig.id,
               providerId: endpointConfig.provider_id,
               status: 'success',
@@ -204,7 +219,7 @@ export async function POST(request: NextRequest) {
               latencyMs,
               requestSize,
               responseSize: 0,
-              model: endpointConfig.model,
+              model: finalRequest.model,
               costEstimate: null,
               errorMessage: null,
               correlationId,
@@ -237,7 +252,7 @@ export async function POST(request: NextRequest) {
             })
             const latencyMs = Date.now() - startTime
             await logUsage({
-              tokenId: tokenData.id,
+              tokenId: tokenData?.id || null,
               endpointId: endpointConfig.id,
               providerId: endpointConfig.provider_id,
               status: 'error',
@@ -245,7 +260,7 @@ export async function POST(request: NextRequest) {
               latencyMs,
               requestSize,
               responseSize: 0,
-              model: endpointConfig.model,
+              model: finalRequest.model,
               costEstimate: null,
               errorMessage: errorMessage,
               correlationId,
@@ -303,7 +318,7 @@ export async function POST(request: NextRequest) {
     const latencyMs = Date.now() - startTime
 
     await logUsage({
-      tokenId: tokenData.id,
+      tokenId: tokenData?.id || null,
       endpointId: endpointConfig.id,
       providerId: endpointConfig.provider_id,
       status: 'success',
@@ -311,7 +326,7 @@ export async function POST(request: NextRequest) {
       latencyMs,
       requestSize,
       responseSize,
-      model: endpointConfig.model,
+      model: finalRequest.model,
       costEstimate: null,
       errorMessage: null,
       correlationId,
@@ -319,12 +334,14 @@ export async function POST(request: NextRequest) {
       userAgent,
     })
 
-    return NextResponse.json(response, {
-      headers: {
-        'X-Correlation-ID': correlationId,
-        'X-RateLimit-Remaining': rateLimit.remaining.toString(),
-      },
-    })
+    const headers: Record<string, string> = {
+      'X-Correlation-ID': correlationId,
+    }
+    if (rateLimit) {
+      headers['X-RateLimit-Remaining'] = rateLimit.remaining.toString()
+    }
+
+    return NextResponse.json(response, { headers })
   } catch (error: any) {
     // Extract status code from provider errors
     let statusCode = 500
@@ -362,28 +379,26 @@ export async function POST(request: NextRequest) {
     const latencyMs = Date.now() - startTime
     
     // Log usage with error status
-    if (tokenData) {
-      try {
-        await logUsage({
-          tokenId: tokenData.id,
-          endpointId: endpointConfig?.id || null,
-          providerId: endpointConfig?.provider_id || null,
-          status: 'error',
-          statusCode,
-          latencyMs,
-          requestSize: body ? JSON.stringify(body).length : 0,
-          responseSize: 0,
-          model: endpointConfig?.model || null,
-          costEstimate: null,
-          errorMessage: errorMessage,
-          correlationId,
-          ipAddress: clientIp,
-          userAgent,
-        })
-      } catch (logError) {
-        // Don't fail if logging fails
-        console.error('Failed to log usage:', logError)
-      }
+    try {
+      await logUsage({
+        tokenId: tokenData?.id || null,
+        endpointId: endpointConfig?.id || null,
+        providerId: endpointConfig?.provider_id || null,
+        status: 'error',
+        statusCode,
+        latencyMs,
+        requestSize: body ? JSON.stringify(body).length : 0,
+        responseSize: 0,
+        model: endpointConfig?.model || null,
+        costEstimate: null,
+        errorMessage: errorMessage,
+        correlationId,
+        ipAddress: clientIp,
+        userAgent,
+      })
+    } catch (logError) {
+      // Don't fail if logging fails
+      console.error('Failed to log usage:', logError)
     }
 
     return NextResponse.json(
