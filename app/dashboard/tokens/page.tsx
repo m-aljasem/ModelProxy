@@ -117,9 +117,49 @@ export default function TokensPage() {
   }
 
   const handleRevoke = async (tokenId: string) => {
-    if (confirm('Are you sure you want to revoke this token?')) {
-      await fetch(`/api/dashboard/tokens/${tokenId}`, { method: 'DELETE' })
-      loadTokens()
+    if (!confirm('Are you sure you want to revoke this token?')) {
+      return
+    }
+
+    try {
+      setLoading(true)
+      const response = await fetch(`/api/dashboard/tokens/${tokenId}`, { method: 'DELETE' })
+      
+      let result: any = {}
+      try {
+        const text = await response.text()
+        if (text) {
+          result = JSON.parse(text)
+        }
+      } catch (parseError) {
+        if (response.ok) {
+          result = { success: true }
+        } else {
+          result = { error: `Server returned ${response.status}` }
+        }
+      }
+
+      if (response.ok && result.success) {
+        // Remove token from localStorage if it exists
+        const storedTokens = JSON.parse(localStorage.getItem('api_tokens') || '{}')
+        if (storedTokens[tokenId]) {
+          delete storedTokens[tokenId]
+          localStorage.setItem('api_tokens', JSON.stringify(storedTokens))
+        }
+        
+        // Reload tokens to reflect the change
+        await loadTokens()
+        alert('Token revoked successfully')
+      } else {
+        const errorMessage = result.error || 'Failed to revoke token'
+        console.error('Error revoking token:', errorMessage)
+        alert(`Error: ${errorMessage}`)
+      }
+    } catch (error: any) {
+      console.error('Error revoking token:', error)
+      alert(`Error: ${error.message || 'Failed to revoke token'}`)
+    } finally {
+      setLoading(false)
     }
   }
 

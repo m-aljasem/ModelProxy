@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
-import { Send, Loader2, MessageSquare } from 'lucide-react'
+import { Send, Loader2, MessageSquare, ChevronDown, ChevronUp, Settings } from 'lucide-react'
 
 interface Endpoint {
   id: string
@@ -56,6 +56,7 @@ export default function ChatPage() {
   const [apiToken, setApiToken] = useState<string>('')
   const [tokens, setTokens] = useState<Array<{ id: string; name: string; value: string | null }>>([])
   const [error, setError] = useState<string | null>(null)
+  const [isConfigExpanded, setIsConfigExpanded] = useState(false)
   const messagesEndRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -356,50 +357,80 @@ export default function ChatPage() {
       </div>
 
       {/* Configuration Panel */}
-      <div className="bg-white rounded-lg shadow p-6 mb-6">
-        {/* Selection Mode Toggle */}
-        <div className="mb-4">
-          <label className="block text-sm font-medium text-gray-700 mb-2">
-            Selection Mode
-          </label>
-          <div className="flex gap-4">
-            <label className="flex items-center">
-              <input
-                type="radio"
-                name="selectionMode"
-                value="endpoint"
-                checked={selectionMode === 'endpoint'}
-                onChange={(e) => {
-                  setSelectionMode('endpoint')
-                  setSelectedProvider(null)
-                  setSelectedModel(null)
-                  setMessages([])
-                  setError(null)
-                }}
-                className="mr-2"
-              />
-              Select Endpoint
-            </label>
-            <label className="flex items-center">
-              <input
-                type="radio"
-                name="selectionMode"
-                value="provider_model"
-                checked={selectionMode === 'provider_model'}
-                onChange={(e) => {
-                  setSelectionMode('provider_model')
-                  setSelectedEndpoint(null)
-                  setMessages([])
-                  setError(null)
-                }}
-                className="mr-2"
-              />
-              Select Provider + Model
-            </label>
+      <div className="bg-white rounded-lg shadow mb-6">
+        {/* Collapsible Header */}
+        <button
+          onClick={() => setIsConfigExpanded(!isConfigExpanded)}
+          className="w-full flex items-center justify-between p-4 hover:bg-gray-50 transition-colors rounded-t-lg"
+        >
+          <div className="flex items-center gap-2">
+            <Settings className="w-5 h-5 text-gray-600" />
+            <span className="font-medium text-gray-900">Configuration</span>
+            {!isConfigExpanded && (
+              <span className="text-sm text-gray-500 ml-2">
+                {selectionMode === 'endpoint' && selectedEndpoint
+                  ? `${selectedEndpoint.name} (${selectedEndpoint.model})`
+                  : selectionMode === 'provider_model' && selectedProvider && selectedModel
+                  ? `${selectedProvider.name} / ${selectedModel.name}`
+                  : selectionMode === 'endpoint'
+                  ? 'Select an endpoint'
+                  : 'Select provider and model'}
+              </span>
+            )}
           </div>
-        </div>
+          {isConfigExpanded ? (
+            <ChevronUp className="w-5 h-5 text-gray-600" />
+          ) : (
+            <ChevronDown className="w-5 h-5 text-gray-600" />
+          )}
+        </button>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        {/* Collapsible Content */}
+        {isConfigExpanded && (
+          <div className="p-6 border-t border-gray-200">
+            {/* Selection Mode Toggle */}
+            <div className="mb-4">
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Selection Mode
+              </label>
+              <div className="flex gap-4">
+                <label className="flex items-center">
+                  <input
+                    type="radio"
+                    name="selectionMode"
+                    value="endpoint"
+                    checked={selectionMode === 'endpoint'}
+                    onChange={(e) => {
+                      setSelectionMode('endpoint')
+                      setSelectedProvider(null)
+                      setSelectedModel(null)
+                      setMessages([])
+                      setError(null)
+                    }}
+                    className="mr-2"
+                  />
+                  Select Endpoint
+                </label>
+                <label className="flex items-center">
+                  <input
+                    type="radio"
+                    name="selectionMode"
+                    value="provider_model"
+                    checked={selectionMode === 'provider_model'}
+                    onChange={(e) => {
+                      setSelectionMode('provider_model')
+                      setSelectedEndpoint(null)
+                      setMessages([])
+                      setError(null)
+                    }}
+                    className="mr-2"
+                  />
+                  Select Provider + Model
+                </label>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {selectionMode === 'endpoint' ? (
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -555,7 +586,9 @@ export default function ChatPage() {
                 : 'Authentication not required'}
             </p>
           </div>
-        </div>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Error Message */}
