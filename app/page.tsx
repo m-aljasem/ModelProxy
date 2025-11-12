@@ -11,7 +11,12 @@ import {
   ArrowRight,
   CheckCircle2,
   Globe,
-  Activity
+  Activity,
+  MessageSquare,
+  Cpu,
+  TestTube,
+  Code,
+  Settings
 } from 'lucide-react'
 
 export default async function Home() {
@@ -50,19 +55,21 @@ export default async function Home() {
         <div className="max-w-7xl mx-auto text-center relative z-10">
           <div className="inline-flex items-center space-x-2 px-4 py-2 bg-white/10 backdrop-blur-md rounded-full border border-white/20 mb-8">
             <Sparkles className="w-4 h-4 text-yellow-400" />
-            <span className="text-sm text-white/90">Production-Ready AI Proxy Platform</span>
+            <span className="text-sm text-white/90">The Ultimate AI Gateway & Management Platform</span>
           </div>
           
           <h1 className="text-6xl md:text-7xl font-bold text-white mb-6 leading-tight">
-            Secure AI Provider
+            Your AI Infrastructure,
             <span className="block bg-gradient-to-r from-indigo-400 via-purple-400 to-pink-400 bg-clip-text text-transparent">
-              Management Platform
+              Simplified & Supercharged
             </span>
           </h1>
           
           <p className="text-xl md:text-2xl text-white/80 mb-12 max-w-3xl mx-auto leading-relaxed">
-            Enterprise-grade proxy and management dashboard for AI providers. 
-            Hide provider keys, manage client access, enforce quotas, and gain complete visibility.
+            The all-in-one platform that transforms how you manage AI providers. 
+            <span className="block mt-2 text-white/90 font-semibold">
+              Chat with any model. Test instantly. Deploy confidently. Scale effortlessly.
+            </span>
           </p>
           
           <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
@@ -93,77 +100,77 @@ export default async function Home() {
         <div className="max-w-7xl mx-auto">
           <div className="text-center mb-16">
             <h2 className="text-4xl md:text-5xl font-bold text-white mb-4">
-              Everything You Need
+              Everything You Need to Master AI
             </h2>
             <p className="text-xl text-white/70 max-w-2xl mx-auto">
-              Powerful features designed for enterprise AI operations
+              From interactive chat interfaces to powerful testing tools—everything you need in one beautiful platform
             </p>
           </div>
 
           <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
-            {/* Feature 1 */}
+            {/* Feature 1 - Chat Interface */}
             <div className="group p-8 bg-white/5 backdrop-blur-md rounded-2xl border border-white/10 hover:border-white/20 transition-all duration-300 hover:scale-105">
               <div className="w-14 h-14 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-xl flex items-center justify-center mb-6 group-hover:scale-110 transition-transform">
-                <Shield className="w-7 h-7 text-white" />
+                <MessageSquare className="w-7 h-7 text-white" />
               </div>
-              <h3 className="text-2xl font-bold text-white mb-3">Secure Authentication</h3>
+              <h3 className="text-2xl font-bold text-white mb-3">Interactive Chat Interface</h3>
               <p className="text-white/70 leading-relaxed">
-                Token-based access control with bcrypt hashing, IP whitelisting, and granular scopes for complete security.
+                Chat directly with any AI model through an intuitive interface. Select endpoints or choose provider + model combinations instantly.
               </p>
             </div>
 
-            {/* Feature 2 */}
+            {/* Feature 2 - Model Management */}
             <div className="group p-8 bg-white/5 backdrop-blur-md rounded-2xl border border-white/10 hover:border-white/20 transition-all duration-300 hover:scale-105">
               <div className="w-14 h-14 bg-gradient-to-br from-purple-500 to-pink-600 rounded-xl flex items-center justify-center mb-6 group-hover:scale-110 transition-transform">
-                <Zap className="w-7 h-7 text-white" />
+                <Cpu className="w-7 h-7 text-white" />
               </div>
-              <h3 className="text-2xl font-bold text-white mb-3">Real-Time Streaming</h3>
+              <h3 className="text-2xl font-bold text-white mb-3">Smart Model Management</h3>
               <p className="text-white/70 leading-relaxed">
-                Server-Sent Events (SSE) support for streaming chat completions with low latency and high performance.
+                Pre-define models per provider or use custom models on-the-fly. Flexible model selection that adapts to your workflow.
               </p>
             </div>
 
-            {/* Feature 3 */}
+            {/* Feature 3 - API Testing */}
             <div className="group p-8 bg-white/5 backdrop-blur-md rounded-2xl border border-white/10 hover:border-white/20 transition-all duration-300 hover:scale-105">
               <div className="w-14 h-14 bg-gradient-to-br from-blue-500 to-cyan-600 rounded-xl flex items-center justify-center mb-6 group-hover:scale-110 transition-transform">
-                <Network className="w-7 h-7 text-white" />
+                <TestTube className="w-7 h-7 text-white" />
               </div>
-              <h3 className="text-2xl font-bold text-white mb-3">Multi-Provider</h3>
+              <h3 className="text-2xl font-bold text-white mb-3">Built-in API Testing</h3>
               <p className="text-white/70 leading-relaxed">
-                Unified interface for OpenAI, OpenRouter, and custom providers with easy extensibility.
+                Test endpoints instantly with real-time results and cURL command generation. Debug faster, deploy with confidence.
               </p>
             </div>
 
-            {/* Feature 4 */}
+            {/* Feature 4 - Multi-Provider */}
             <div className="group p-8 bg-white/5 backdrop-blur-md rounded-2xl border border-white/10 hover:border-white/20 transition-all duration-300 hover:scale-105">
               <div className="w-14 h-14 bg-gradient-to-br from-green-500 to-emerald-600 rounded-xl flex items-center justify-center mb-6 group-hover:scale-110 transition-transform">
-                <BarChart3 className="w-7 h-7 text-white" />
+                <Network className="w-7 h-7 text-white" />
               </div>
-              <h3 className="text-2xl font-bold text-white mb-3">Analytics Dashboard</h3>
+              <h3 className="text-2xl font-bold text-white mb-3">Multi-Provider Support</h3>
               <p className="text-white/70 leading-relaxed">
-                Comprehensive usage analytics, request logs, and real-time monitoring with beautiful visualizations.
+                Unified interface for OpenAI, OpenRouter, and custom providers. Switch between providers seamlessly.
               </p>
             </div>
 
-            {/* Feature 5 */}
+            {/* Feature 5 - Secure Authentication */}
             <div className="group p-8 bg-white/5 backdrop-blur-md rounded-2xl border border-white/10 hover:border-white/20 transition-all duration-300 hover:scale-105">
               <div className="w-14 h-14 bg-gradient-to-br from-red-500 to-orange-600 rounded-xl flex items-center justify-center mb-6 group-hover:scale-110 transition-transform">
-                <Lock className="w-7 h-7 text-white" />
+                <Shield className="w-7 h-7 text-white" />
               </div>
-              <h3 className="text-2xl font-bold text-white mb-3">Rate Limiting</h3>
+              <h3 className="text-2xl font-bold text-white mb-3">Enterprise Security</h3>
               <p className="text-white/70 leading-relaxed">
-                Per-token rate limits and monthly quotas with burst control to prevent abuse and manage costs.
+                Token-based access with bcrypt hashing, IP whitelisting, rate limits, and granular scopes. Your keys stay hidden.
               </p>
             </div>
 
-            {/* Feature 6 */}
+            {/* Feature 6 - Analytics */}
             <div className="group p-8 bg-white/5 backdrop-blur-md rounded-2xl border border-white/10 hover:border-white/20 transition-all duration-300 hover:scale-105">
               <div className="w-14 h-14 bg-gradient-to-br from-yellow-500 to-amber-600 rounded-xl flex items-center justify-center mb-6 group-hover:scale-110 transition-transform">
-                <Activity className="w-7 h-7 text-white" />
+                <BarChart3 className="w-7 h-7 text-white" />
               </div>
-              <h3 className="text-2xl font-bold text-white mb-3">Audit Logging</h3>
+              <h3 className="text-2xl font-bold text-white mb-3">Real-Time Analytics</h3>
               <p className="text-white/70 leading-relaxed">
-                Complete request tracing with correlation IDs, latency tracking, and comprehensive audit trails.
+                Comprehensive usage tracking, request logs, and beautiful visualizations. Know exactly what&apos;s happening.
               </p>
             </div>
           </div>
@@ -176,19 +183,20 @@ export default async function Home() {
           <div className="grid md:grid-cols-2 gap-12 items-center">
             <div>
               <h2 className="text-4xl md:text-5xl font-bold text-white mb-6">
-                Built for Scale
+                Why Teams Choose ModelProxy
               </h2>
               <p className="text-xl text-white/80 mb-8 leading-relaxed">
-                ModelProxy is designed from the ground up to handle enterprise workloads with reliability, security, and performance.
+                Stop juggling multiple tools. ModelProxy gives you everything you need to manage, test, and deploy AI solutions with confidence.
               </p>
               <div className="space-y-4">
                 {[
-                  'Hide provider API keys from clients',
-                  'Manage multiple AI providers from one dashboard',
-                  'Enforce quotas and rate limits per client',
-                  'Track usage and costs with detailed analytics',
-                  'Extensible architecture for custom providers',
-                  'Production-ready with comprehensive logging'
+                  'Chat with any model instantly—no code required',
+                  'Test endpoints with one click and get cURL commands',
+                  'Pre-define models or use custom ones on-the-fly',
+                  'Hide provider keys while giving clients seamless access',
+                  'Enforce quotas and rate limits to control costs',
+                  'Track everything with beautiful analytics and logs',
+                  'Deploy in minutes, scale to millions of requests'
                 ].map((benefit, index) => (
                   <div key={index} className="flex items-start space-x-3">
                     <CheckCircle2 className="w-6 h-6 text-green-400 flex-shrink-0 mt-0.5" />
@@ -234,10 +242,11 @@ export default async function Home() {
         <div className="max-w-4xl mx-auto text-center">
           <div className="p-12 bg-gradient-to-r from-indigo-600/20 via-purple-600/20 to-pink-600/20 backdrop-blur-md rounded-3xl border border-white/10">
             <h2 className="text-4xl md:text-5xl font-bold text-white mb-6">
-              Ready to Get Started?
+              Ready to Transform Your AI Workflow?
             </h2>
             <p className="text-xl text-white/80 mb-8 max-w-2xl mx-auto">
-              Join teams using ModelProxy to manage their AI infrastructure with confidence and control.
+              Join developers and teams who&apos;ve simplified their AI infrastructure. 
+              <span className="block mt-2 font-semibold text-white">Start chatting, testing, and deploying in minutes.</span>
             </p>
             <Link
               href="/login"
@@ -253,16 +262,22 @@ export default async function Home() {
       {/* Footer */}
       <footer className="relative py-12 px-6 border-t border-white/10">
         <div className="max-w-7xl mx-auto">
-          <div className="flex flex-col md:flex-row items-center justify-between">
-            <div className="flex items-center space-x-2 mb-4 md:mb-0">
+          <div className="flex flex-col md:flex-row items-center justify-between gap-4">
+            <div className="flex items-center space-x-2">
               <div className="w-8 h-8 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-lg flex items-center justify-center">
                 <Network className="w-5 h-5 text-white" />
               </div>
               <span className="text-xl font-bold text-white">ModelProxy</span>
             </div>
-            <p className="text-white/60 text-sm">
-              © 2024 ModelProxy. Built with Next.js and Supabase.
-            </p>
+            <div className="flex flex-col md:flex-row items-center gap-2 md:gap-4 text-center md:text-left">
+              <p className="text-white/60 text-sm">
+                © 2024-2025 <a href="https://aljasem.eu.org" target="_blank" rel="noopener noreferrer" className="text-white/80 hover:text-white transition-colors underline">Mohamad AlJasem</a>
+              </p>
+              <span className="hidden md:inline text-white/40">•</span>
+              <a href="https://aljasem.eu.org" target="_blank" rel="noopener noreferrer" className="text-white/60 hover:text-white text-sm transition-colors">
+                aljasem.eu.org
+              </a>
+            </div>
           </div>
         </div>
       </footer>
