@@ -75,8 +75,12 @@ export default function TokensPage() {
       }
       
       if (response.ok) {
-        if (result.token) {
+        if (result.token && result.tokenData) {
           setNewToken(result.token)
+          // Store token in localStorage for easy access in chat page
+          const storedTokens = JSON.parse(localStorage.getItem('api_tokens') || '{}')
+          storedTokens[result.tokenData.id] = result.token
+          localStorage.setItem('api_tokens', JSON.stringify(storedTokens))
         }
         setShowForm(false)
         setEditingId(null)

@@ -136,6 +136,122 @@ export default function MCPBuilderPage() {
     })
   }
 
+  const exampleTools = [
+    {
+      name: 'web_search',
+      description: 'Search the web for information using DuckDuckGo',
+      handler_type: 'http' as const,
+      schema: {
+        type: 'object',
+        properties: {
+          query: {
+            type: 'string',
+            description: 'The search query to look up'
+          }
+        },
+        required: ['query']
+      },
+      handler_config: {
+        url: 'https://api.duckduckgo.com/?q={query}&format=json',
+        method: 'GET'
+      }
+    },
+    {
+      name: 'calculate',
+      description: 'Perform mathematical calculations',
+      handler_type: 'function' as const,
+      schema: {
+        type: 'object',
+        properties: {
+          expression: {
+            type: 'string',
+            description: 'Mathematical expression to evaluate (e.g., "2 + 2", "10 * 5")'
+          }
+        },
+        required: ['expression']
+      },
+      handler_config: {
+        type: 'eval',
+        sandbox: true
+      }
+    },
+    {
+      name: 'get_weather',
+      description: 'Get current weather information for a location',
+      handler_type: 'http' as const,
+      schema: {
+        type: 'object',
+        properties: {
+          location: {
+            type: 'string',
+            description: 'City name or location (e.g., "San Francisco", "New York")'
+          },
+          units: {
+            type: 'string',
+            description: 'Temperature units: "celsius" or "fahrenheit"',
+            enum: ['celsius', 'fahrenheit']
+          }
+        },
+        required: ['location']
+      },
+      handler_config: {
+        url: 'https://api.openweathermap.org/data/2.5/weather?q={location}&units={units}&appid=YOUR_API_KEY',
+        method: 'GET',
+        headers: {
+          'Accept': 'application/json'
+        }
+      }
+    },
+    {
+      name: 'send_email',
+      description: 'Send an email notification',
+      handler_type: 'http' as const,
+      schema: {
+        type: 'object',
+        properties: {
+          to: {
+            type: 'string',
+            description: 'Recipient email address'
+          },
+          subject: {
+            type: 'string',
+            description: 'Email subject line'
+          },
+          body: {
+            type: 'string',
+            description: 'Email body content'
+          }
+        },
+        required: ['to', 'subject', 'body']
+      },
+      handler_config: {
+        url: 'https://api.example.com/send-email',
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer {API_KEY}'
+        },
+        body: {
+          to: '{to}',
+          subject: '{subject}',
+          body: '{body}'
+        }
+      }
+    }
+  ]
+
+  const loadExample = (example: typeof exampleTools[0]) => {
+    setToolForm({
+      name: example.name,
+      description: example.description,
+      handler_type: example.handler_type,
+      schema: JSON.parse(JSON.stringify(example.schema)), // Deep copy
+      handler_config: JSON.parse(JSON.stringify(example.handler_config)) // Deep copy
+    })
+    setShowToolForm(true)
+    setEditingTool(null)
+  }
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -159,6 +275,39 @@ export default function MCPBuilderPage() {
           <Plus className="w-5 h-5" />
           New Tool
         </button>
+      </div>
+
+      {/* Examples Section */}
+      <div className="bg-gradient-to-r from-indigo-50 to-purple-50 rounded-xl shadow-lg border border-indigo-200 p-6">
+        <div className="flex items-center gap-2 mb-4">
+          <Code className="w-6 h-6 text-indigo-600" />
+          <h2 className="text-xl font-semibold text-gray-900">Example Tools</h2>
+        </div>
+        <p className="text-sm text-gray-600 mb-4">
+          Click on any example below to load it into the editor. Edit and customize it to create your own tool!
+        </p>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+          {exampleTools.map((example, index) => (
+            <button
+              key={index}
+              onClick={() => loadExample(example)}
+              className="text-left p-4 bg-white rounded-lg border border-gray-200 hover:border-indigo-400 hover:shadow-md transition-all group"
+            >
+              <div className="flex items-start justify-between mb-2">
+                <h3 className="font-semibold text-gray-900 group-hover:text-indigo-600 transition-colors">
+                  {example.name}
+                </h3>
+                <span className="text-xs px-2 py-1 bg-indigo-100 text-indigo-800 rounded">
+                  {example.handler_type}
+                </span>
+              </div>
+              <p className="text-sm text-gray-600 mb-2">{example.description}</p>
+              <div className="text-xs text-gray-500">
+                {Object.keys(example.schema.properties).length} property{Object.keys(example.schema.properties).length !== 1 ? 'ies' : ''}
+              </div>
+            </button>
+          ))}
+        </div>
       </div>
 
       {showToolForm && (
@@ -225,32 +374,84 @@ export default function MCPBuilderPage() {
                 Add Property
               </button>
             </div>
-            <div className="border border-gray-200 rounded-lg p-4 space-y-2 max-h-64 overflow-y-auto">
+            <div className="border border-gray-200 rounded-lg p-4 space-y-3 max-h-96 overflow-y-auto">
               {Object.keys(toolForm.schema.properties).length === 0 ? (
                   <div className="text-gray-500 text-sm text-center py-4">
                     No properties yet. Click &quot;Add Property&quot; to add one.
                   </div>
               ) : (
                 Object.entries(toolForm.schema.properties).map(([name, prop]: [string, any]) => (
-                  <div key={name} className="flex items-center justify-between p-2 bg-gray-50 rounded">
-                    <div className="flex-1">
-                      <div className="font-medium text-gray-900">{name}</div>
-                      <div className="text-sm text-gray-600">
-                        {prop.type} - {prop.description || 'No description'}
+                  <div key={name} className="p-3 bg-gray-50 rounded-lg border border-gray-200 space-y-2">
+                    <div className="flex items-center justify-between">
+                      <div className="flex-1">
+                        <div className="font-medium text-gray-900 mb-1">{name}</div>
+                        <div className="text-xs text-gray-500 mb-2">
+                          Type: <span className="font-mono">{prop.type}</span>
+                          {prop.enum && (
+                            <span className="ml-2">
+                              Options: <span className="font-mono">{prop.enum.join(', ')}</span>
+                            </span>
+                          )}
+                        </div>
+                        <textarea
+                          value={prop.description || ''}
+                          onChange={(e) => {
+                            const newProperties = { ...toolForm.schema.properties }
+                            newProperties[name] = {
+                              ...newProperties[name],
+                              description: e.target.value
+                            }
+                            setToolForm({
+                              ...toolForm,
+                              schema: {
+                                ...toolForm.schema,
+                                properties: newProperties
+                              }
+                            })
+                          }}
+                          className="w-full px-2 py-1 text-sm border border-gray-300 rounded focus:ring-1 focus:ring-indigo-500"
+                          placeholder="Property description..."
+                          rows={2}
+                        />
                       </div>
                     </div>
-                    <div className="flex items-center gap-2">
-                      <label className="flex items-center gap-1 text-sm">
+                    <div className="flex items-center gap-3">
+                      <label className="flex items-center gap-1 text-sm cursor-pointer">
                         <input
                           type="checkbox"
                           checked={toolForm.schema.required.includes(name)}
                           onChange={() => toggleRequired(name)}
+                          className="cursor-pointer"
                         />
                         Required
                       </label>
+                      <select
+                        value={prop.type}
+                        onChange={(e) => {
+                          const newProperties = { ...toolForm.schema.properties }
+                          newProperties[name] = {
+                            ...newProperties[name],
+                            type: e.target.value
+                          }
+                          setToolForm({
+                            ...toolForm,
+                            schema: {
+                              ...toolForm.schema,
+                              properties: newProperties
+                            }
+                          })
+                        }}
+                        className="text-xs px-2 py-1 border border-gray-300 rounded focus:ring-1 focus:ring-indigo-500"
+                      >
+                        <option value="string">string</option>
+                        <option value="number">number</option>
+                        <option value="boolean">boolean</option>
+                        <option value="object">object</option>
+                        <option value="array">array</option>
+                      </select>
                       <button
                         onClick={() => removeProperty(name)}
-                        className="text-red-600 hover:text-red-800 text-sm"
+                        className="text-red-600 hover:text-red-800 text-sm font-medium"
                       >
                         Remove
                       </button>

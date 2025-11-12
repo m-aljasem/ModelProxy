@@ -54,7 +54,7 @@ export default function ChatPage() {
   const [loading, setLoading] = useState(false)
   const [loadingEndpoints, setLoadingEndpoints] = useState(true)
   const [apiToken, setApiToken] = useState<string>('')
-  const [tokens, setTokens] = useState<Array<{ id: string; name: string }>>([])
+  const [tokens, setTokens] = useState<Array<{ id: string; name: string; value: string | null }>>([])
   const [error, setError] = useState<string | null>(null)
   const messagesEndRef = useRef<HTMLDivElement>(null)
 
@@ -160,7 +160,18 @@ export default function ChatPage() {
       if (response.ok && result.data) {
         // Filter active tokens
         const activeTokens = result.data.filter((t: any) => t.is_active)
-        setTokens(activeTokens.map((t: any) => ({ id: t.id, name: t.name })))
+        
+        // Load token values from localStorage
+        const tokensWithValues = activeTokens.map((t: any) => {
+          const storedTokens = JSON.parse(localStorage.getItem('api_tokens') || '{}')
+          return {
+            id: t.id,
+            name: t.name,
+            value: storedTokens[t.id] || null // Get token value from localStorage if available
+          }
+        })
+        
+        setTokens(tokensWithValues)
       } else {
         console.error('Error loading tokens:', result.error)
       }
@@ -487,18 +498,37 @@ export default function ChatPage() {
                         key={token.id}
                         type="button"
                         onClick={() => {
-                          // Navigate to tokens page where user can view/copy their tokens
-                          router.push('/dashboard/tokens')
+                          if (token.value) {
+                            // Token value is available in localStorage, use it
+                            setApiToken(token.value)
+                          } else {
+                            // Token value not found, navigate to tokens page
+                            alert(`Token "${token.name}" value not found. Please copy it from the Tokens page.`)
+                            router.push('/dashboard/tokens')
+                          }
                         }}
-                        className="w-full text-left px-3 py-2 text-sm bg-gray-50 hover:bg-gray-100 rounded border border-gray-200 transition-colors"
-                        title="Click to go to Tokens page"
+                        className={`w-full text-left px-3 py-2 text-sm rounded border transition-colors ${
+                          token.value
+                            ? 'bg-indigo-50 hover:bg-indigo-100 border-indigo-200 text-indigo-900'
+                            : 'bg-gray-50 hover:bg-gray-100 border-gray-200 text-gray-600'
+                        }`}
+                        title={token.value ? 'Click to use this token' : 'Token value not available - click to go to Tokens page'}
                       >
-                        {token.name}
+                        <div className="flex items-center justify-between">
+                          <span>{token.name}</span>
+                          {token.value ? (
+                            <span className="text-xs text-green-600">✓ Available</span>
+                          ) : (
+                            <span className="text-xs text-gray-400">Not stored</span>
+                          )}
+                        </div>
                       </button>
                     ))}
                   </div>
                   <p className="mt-1 text-xs text-gray-500">
-                    Click a token name to go to the Tokens page where you can copy the token value.
+                    {tokens.some(t => t.value) 
+                      ? 'Click a token to use it. Tokens are stored when created.'
+                      : 'No token values found. Create a new token to store its value automatically.'}
                   </p>
                 </div>
               )}
