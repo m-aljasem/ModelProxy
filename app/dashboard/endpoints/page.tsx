@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import ApiDocsModal from '@/components/ApiDocsModal'
 
 interface Endpoint {
   id: string
@@ -23,6 +24,8 @@ export default function EndpointsPage() {
     provider_id: '',
   })
   const [providers, setProviders] = useState<any[]>([])
+  const [selectedEndpoint, setSelectedEndpoint] = useState<Endpoint | null>(null)
+  const [showApiDocs, setShowApiDocs] = useState(false)
 
   useEffect(() => {
     loadEndpoints()
@@ -310,6 +313,15 @@ export default function EndpointsPage() {
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                   <button
+                    onClick={() => {
+                      setSelectedEndpoint(endpoint)
+                      setShowApiDocs(true)
+                    }}
+                    className="text-blue-600 hover:text-blue-900 mr-4"
+                  >
+                    View API Docs
+                  </button>
+                  <button
                     onClick={() => handleEdit(endpoint)}
                     className="text-indigo-600 hover:text-indigo-900 mr-4"
                   >
@@ -327,6 +339,17 @@ export default function EndpointsPage() {
           </tbody>
         </table>
       </div>
+
+      {selectedEndpoint && (
+        <ApiDocsModal
+          endpoint={selectedEndpoint}
+          isOpen={showApiDocs}
+          onClose={() => {
+            setShowApiDocs(false)
+            setSelectedEndpoint(null)
+          }}
+        />
+      )}
     </div>
   )
 }
