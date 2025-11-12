@@ -17,12 +17,18 @@ export async function POST(request: NextRequest) {
                    'unknown'
   const userAgent = request.headers.get('user-agent') || 'unknown'
 
+  // Variables that might be needed in catch block
+  let tokenData: any = null
+  let body: any = null
+  let endpointConfig: any = null
+
   try {
     // Authenticate token
-    const { tokenData, error: authError } = await authenticateToken(request)
-    if (!tokenData || authError) {
+    const authResult = await authenticateToken(request)
+    tokenData = authResult.tokenData
+    if (!tokenData || authResult.error) {
       return NextResponse.json(
-        { error: authError || 'Unauthorized' },
+        { error: authResult.error || 'Unauthorized' },
         { status: 401 }
       )
     }
@@ -70,7 +76,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Parse request body
-    const body = await request.json()
+    body = await request.json()
     const { endpoint, mcp_config_id, stream, ...chatRequest } = body
 
     if (!endpoint) {
@@ -102,7 +108,7 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    const endpointConfig = endpointData as any
+    endpointConfig = endpointData as any
 
     // Get MCP config if specified
     let mcpServer: MCPServer | null = null
@@ -206,20 +212,42 @@ export async function POST(request: NextRequest) {
               userAgent,
             })
           } catch (error: any) {
-            structuredLog('error', 'MCP streaming error', { correlationId, error: error.message })
+            // Extract status code from provider errors
+            let statusCode = 500
+            let errorMessage = error.message || 'MCP streaming error'
+
+            if (error.response) {
+              statusCode = error.response.status || 500
+              errorMessage = error.response.data?.error?.message || 
+                           error.response.data?.error || 
+                           errorMessage
+            } else if (error.status) {
+              statusCode = error.status
+            } else if (error.message?.includes('status code')) {
+              const match = error.message.match(/status code (\d+)/)
+              if (match) {
+                statusCode = parseInt(match[1])
+              }
+            }
+
+            structuredLog('error', 'MCP streaming error', { 
+              correlationId, 
+              error: errorMessage,
+              statusCode
+            })
             const latencyMs = Date.now() - startTime
             await logUsage({
               tokenId: tokenData.id,
               endpointId: endpointConfig.id,
               providerId: endpointConfig.provider_id,
               status: 'error',
-              statusCode: 500,
+              statusCode,
               latencyMs,
               requestSize,
               responseSize: 0,
               model: endpointConfig.model,
               costEstimate: null,
-              errorMessage: error.message,
+              errorMessage: errorMessage,
               correlationId,
               ipAddress: clientIp,
               userAgent,
@@ -298,11 +326,73 @@ export async function POST(request: NextRequest) {
       },
     })
   } catch (error: any) {
-    structuredLog('error', 'MCP Chat API error', { correlationId, error: error.message })
+    // Extract status code from provider errors
+    let statusCode = 500
+    let errorMessage = error.message || 'Internal server error'
+    let errorDetails: any = null
+
+    // Handle axios errors (OpenRouter, custom providers)
+    if (error.response) {
+      statusCode = error.response.status || 500
+      errorMessage = error.response.data?.error?.message || 
+                     error.response.data?.error || 
+                     errorMessage
+      errorDetails = error.response.data
+    }
+    // Handle OpenAI SDK errors
+    else if (error.status) {
+      statusCode = error.status
+      errorMessage = error.message || errorMessage
+    }
+    // Handle errors with status code in message (e.g., "Request failed with status code 402")
+    else if (error.message?.includes('status code')) {
+      const match = error.message.match(/status code (\d+)/)
+      if (match) {
+        statusCode = parseInt(match[1])
+      }
+    }
+
+    structuredLog('error', 'MCP Chat API error', { 
+      correlationId, 
+      error: errorMessage,
+      statusCode,
+      providerError: error.response?.data || error.details
+    })
+
     const latencyMs = Date.now() - startTime
+    
+    // Log usage with error status
+    if (tokenData) {
+      try {
+        await logUsage({
+          tokenId: tokenData.id,
+          endpointId: endpointConfig?.id || null,
+          providerId: endpointConfig?.provider_id || null,
+          status: 'error',
+          statusCode,
+          latencyMs,
+          requestSize: body ? JSON.stringify(body).length : 0,
+          responseSize: 0,
+          model: endpointConfig?.model || null,
+          costEstimate: null,
+          errorMessage: errorMessage,
+          correlationId,
+          ipAddress: clientIp,
+          userAgent,
+        })
+      } catch (logError) {
+        // Don't fail if logging fails
+        console.error('Failed to log usage:', logError)
+      }
+    }
+
     return NextResponse.json(
-      { error: error.message || 'Internal server error', correlationId },
-      { status: 500 }
+      { 
+        error: errorMessage, 
+        correlationId,
+        ...(errorDetails && { details: errorDetails })
+      },
+      { status: statusCode }
     )
   }
 }
