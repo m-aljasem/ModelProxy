@@ -475,7 +475,31 @@ export default function EndpointsPage() {
                 <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
                   {endpoint.name}
                 </td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{endpoint.path}</td>
+                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                  <button
+                    onClick={async (e) => {
+                      try {
+                        await navigator.clipboard.writeText(endpoint.path)
+                        // Show a temporary feedback
+                        const button = e.currentTarget as HTMLButtonElement
+                        const originalText = button.textContent
+                        button.textContent = 'Copied!'
+                        button.classList.add('text-green-600')
+                        setTimeout(() => {
+                          button.textContent = originalText
+                          button.classList.remove('text-green-600')
+                        }, 2000)
+                      } catch (err) {
+                        console.error('Failed to copy:', err)
+                        alert('Failed to copy to clipboard')
+                      }
+                    }}
+                    className="hover:text-indigo-600 hover:underline cursor-pointer transition-colors"
+                    title="Click to copy path"
+                  >
+                    {endpoint.path}
+                  </button>
+                </td>
                 <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{endpoint.model}</td>
                 <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                   {endpoint.providers?.name || 'N/A'}

@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useRef } from 'react'
+import { useRouter } from 'next/navigation'
 import { Send, Loader2, MessageSquare } from 'lucide-react'
 
 interface Endpoint {
@@ -40,6 +41,7 @@ interface Message {
 type SelectionMode = 'endpoint' | 'provider_model'
 
 export default function ChatPage() {
+  const router = useRouter()
   const [selectionMode, setSelectionMode] = useState<SelectionMode>('endpoint')
   const [endpoints, setEndpoints] = useState<Endpoint[]>([])
   const [providers, setProviders] = useState<Provider[]>([])
@@ -52,12 +54,14 @@ export default function ChatPage() {
   const [loading, setLoading] = useState(false)
   const [loadingEndpoints, setLoadingEndpoints] = useState(true)
   const [apiToken, setApiToken] = useState<string>('')
+  const [tokens, setTokens] = useState<Array<{ id: string; name: string }>>([])
   const [error, setError] = useState<string | null>(null)
   const messagesEndRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     loadEndpoints()
     loadProviders()
+    loadTokens()
     // Load token from localStorage if available
     const savedToken = localStorage.getItem('chat_api_token')
     if (savedToken) {
@@ -145,6 +149,23 @@ export default function ChatPage() {
       }
     } catch (error) {
       console.error('Error loading models:', error)
+    }
+  }
+
+  const loadTokens = async () => {
+    try {
+      const response = await fetch('/api/dashboard/tokens')
+      const result = await response.json()
+      
+      if (response.ok && result.data) {
+        // Filter active tokens
+        const activeTokens = result.data.filter((t: any) => t.is_active)
+        setTokens(activeTokens.map((t: any) => ({ id: t.id, name: t.name })))
+      } else {
+        console.error('Error loading tokens:', result.error)
+      }
+    } catch (error) {
+      console.error('Error loading tokens:', error)
     }
   }
 
@@ -455,6 +476,32 @@ export default function ChatPage() {
                   </p>
                 )}
               </div>
+              {selectionMode === 'provider_model' && tokens.length > 0 && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Predefined Tokens
+                  </label>
+                  <div className="space-y-2 max-h-32 overflow-y-auto border border-gray-200 rounded-md p-2">
+                    {tokens.map((token) => (
+                      <button
+                        key={token.id}
+                        type="button"
+                        onClick={() => {
+                          // Navigate to tokens page where user can view/copy their tokens
+                          router.push('/dashboard/tokens')
+                        }}
+                        className="w-full text-left px-3 py-2 text-sm bg-gray-50 hover:bg-gray-100 rounded border border-gray-200 transition-colors"
+                        title="Click to go to Tokens page"
+                      >
+                        {token.name}
+                      </button>
+                    ))}
+                  </div>
+                  <p className="mt-1 text-xs text-gray-500">
+                    Click a token name to go to the Tokens page where you can copy the token value.
+                  </p>
+                </div>
+              )}
             </>
           )}
 
