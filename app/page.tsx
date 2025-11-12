@@ -1,22 +1,20 @@
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import Link from 'next/link'
+import { Navigation } from '@/components/Navigation'
+import { Footer } from '@/components/Footer'
 import { 
   Shield, 
   Zap, 
   Network, 
   BarChart3, 
-  Lock, 
   Sparkles,
   ArrowRight,
   CheckCircle2,
   Globe,
-  Activity,
   MessageSquare,
   Cpu,
-  TestTube,
-  Code,
-  Settings
+  TestTube
 } from 'lucide-react'
 
 export default async function Home() {
@@ -31,23 +29,7 @@ export default async function Home() {
   // Show homepage for visitors
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900">
-      {/* Navigation */}
-      <nav className="absolute top-0 left-0 right-0 z-50 px-6 py-4">
-        <div className="max-w-7xl mx-auto flex items-center justify-between">
-          <div className="flex items-center space-x-2">
-            <div className="w-10 h-10 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-lg flex items-center justify-center">
-              <Network className="w-6 h-6 text-white" />
-            </div>
-            <span className="text-2xl font-bold text-white">ModelProxy</span>
-          </div>
-          <Link
-            href="/login"
-            className="px-6 py-2.5 bg-white/10 backdrop-blur-md text-white rounded-lg font-medium hover:bg-white/20 transition-all duration-300 border border-white/20 hover:border-white/30"
-          >
-            Sign In
-          </Link>
-        </div>
-      </nav>
+      <Navigation />
 
       {/* Hero Section */}
       <div className="relative pt-32 pb-20 px-6 overflow-hidden">
@@ -259,28 +241,7 @@ export default async function Home() {
         </div>
       </div>
 
-      {/* Footer */}
-      <footer className="relative py-12 px-6 border-t border-white/10">
-        <div className="max-w-7xl mx-auto">
-          <div className="flex flex-col md:flex-row items-center justify-between gap-4">
-            <div className="flex items-center space-x-2">
-              <div className="w-8 h-8 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-lg flex items-center justify-center">
-                <Network className="w-5 h-5 text-white" />
-              </div>
-              <span className="text-xl font-bold text-white">ModelProxy</span>
-            </div>
-            <div className="flex flex-col md:flex-row items-center gap-2 md:gap-4 text-center md:text-left">
-              <p className="text-white/60 text-sm">
-                © 2024-2025 <a href="https://aljasem.eu.org" target="_blank" rel="noopener noreferrer" className="text-white/80 hover:text-white transition-colors underline">Mohamad AlJasem</a>
-              </p>
-              <span className="hidden md:inline text-white/40">•</span>
-              <a href="https://aljasem.eu.org" target="_blank" rel="noopener noreferrer" className="text-white/60 hover:text-white text-sm transition-colors">
-                aljasem.eu.org
-              </a>
-            </div>
-          </div>
-        </div>
-      </footer>
+      <Footer />
     </div>
   )
 }
